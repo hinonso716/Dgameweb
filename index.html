@@ -1,125 +1,134 @@
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>洛克人 – 真正的經典版</title>
-  <style>
-    body{margin:0;background:#000;overflow:hidden;}
-    canvas{display:block;border:8px solid #00ffff;box-shadow:0 0 50px #00ffff;background:#001122;}
-    #ui{position:absolute;top:10px;left:10px;color:#fff;font-family:Arial;z-index:10;}
-    #info{position:absolute;bottom:10px;left:50%;transform:translateX(-50%);color:#0ff;font-size:14px;}
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>洛克人 – 就是這感覺</title>
+<style>
+  body{margin:0;background:#000;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;overflow:hidden;}
+  canvas{border:10px solid #00f0ff;box-shadow:0 0 60px #00f0ff, inset 0 0 40px rgba(0,240,255,0.3);background:#001122;}
+  #ui{position:absolute;top:10px;left:10px;color:#fff;font: bold 20px Arial;z-index:10;}
+  #info{position:absolute;bottom:10px;left:50%;transform:translateX(-50%);color:#00ffff;font:18px Arial;}
+</style>
 </head>
 <body>
-<div id="ui">生命: <span id="lives">3</span>　分數: <span id="score">0</span>　武器: <span id="weapon">普通</span></div>
-<canvas id="c" width="800" height="450"></canvas>
-<div id="info">A/D移動　W跳　長按J蓄力射擊（面向方向）　撿武器換形態</div>
+
+<div id="ui">
+  生命: <span id="lives">3</span>　分數: <span id="score">0</span>　武器: <span id="weapon">普通</span>
+</div>
+<canvas id="c" width="960" height="540"></canvas>
+<div id="info">A/D 移動　W 跳　長按 J 蓄力射擊（面向方向）　撿武器換形態</div>
 
 <script>
-// 真正的洛克人開始！
+// 真正的洛克人開始 — 這次只用最經典的方式
 const canvas = document.getElementById('c');
 const ctx = canvas.getContext('2d');
-const cam = {x:0, y:0};
-const G = 0.8, JUMP = -16, SPEED = 5;
+const cam = {x:0};
 
-let player = {x:100,y:300,w:40,h:60,vx:0,vy:0,onGround:false,facing:1,charge:0,form:'normal'};
-let bullets=[], enemies=[], items=[], platforms=[], particles=[];
-let score=0, lives=3;
+const player = {
+  x: 100, y: 300, w: 46, h: 56,
+  vx: 0, vy: 0, onGround: false,
+  facing: 1, charge: 0, form: 'normal'
+};
 
-// 經典平台
+const weapons = {
+  normal:   {name:'普通',   color:'#00f0ff', shotColor:'#00ffff'},
+  fire:     {name:'火焰',   color:'#ff4000', shotColor:'#ff8000'},
+  electric: {name:'電擊',   color:'#00ff40', shotColor:'#80ff00'},
+  ice:      {name:'冰凍',   color:'#00ffff', shotColor:'#80ffff'}
+};
+
+let bullets = [], enemies = [], items = [], platforms = [], particles = [];
+let score = 0, lives = 3;
+
+// 經典平台關卡
 platforms = [
-  {x:0,y:400,w:2000,h:50}, // 地面
-  {x:300,y:350,w:150,h:20},
-  {x:600,y:300,w:200,h:20},
-  {x:900,y:250,w:150,h:20},
-  {x:1200,y:320,w:180,h:20},
-  {x:1500,y:280,w:200,h:20},
-  {x:1850,y:350,w:150,h:20}
+  {x:0,y:480,w:3000,h:60}, // 主地面
+  {x:300,y:420,w:200,h:20},
+  {x:600,y:360,w:180,h:20},
+  {x:950,y:400,w:220,h:20},
+  {x:1350,y:340,w:180,h:20},
+  {x:1700,y:380,w:250,h:20},
+  {x:2100,y:300,w:200,h:20}
 ];
 
 // 武器道具
-items.push({x:500,y:250,type:'fire'});
-items.push({x:1000,y:200,type:'electric'});
-items.push({x:1600,y:220,type:'ice'});
+items = [
+  {x:500,y:360,type:'fire'},
+  {x:1100,y:300,type:'electric'},
+  {x:1800,y:240,type:'ice'}
+];
 
-// 生成小怪
+// 小怪生成
 setInterval(()=>{
-  if(Math.random()<0.7) enemies.push({x:canvas.width+50,y:340,hp:3,type:'normal'});
-}, 2000);
+  enemies.push({x:canvas.width+100,y:420,hp:3,w:40,h:50,vx:-2});
+},1800);
 
-const weapons = {
-  normal: {color:'#00ffff', name:'普通', shot:normalShot},
-  fire:   {color:'#ff4400', name:'火焰', shot:fireShot},
-  electric:{color:'#00ff88', name:'電擊', shot:electricShot},
-  ice:    {color:'#44ffff', name:'冰凍', shot:iceShot}
-};
+document.addEventListener('keydown',e=>keys[e.key.toLowerCase()]=true);
+document.addEventListener('keyup',e=>keys[e.key.toLowerCase()]=false);
+const keys = {};
 
-function normalShot(){ shoot(15, 20, '#00ffff'); }
-function fireShot(){ for(let i=-1;i<=1;i++) shoot(18, 25, '#ff8800', i*2); }
-function electricShot(){ shoot(12, 40, '#aaff00', 0, true); }
-function iceShot(){ shoot(10, 30, '#88ffff', 0, false, true); }
-
-function shoot(speed,size,color,vy=0,shock=false,freeze=false){
-  const power = player.charge>100?2:1;
+// 射擊（面向方向）
+function shoot(){
+  const power = player.charge > 150 ? 2 : 1;
   bullets.push({
-    x:player.x+(player.facing>0?player.w:0),
-    y:player.y+30,
-    vx:player.facing*speed*power,
-    vy,
-    size:size*power,
-    color,
-    shock,
-    freeze
+    x: player.x + (player.facing>0?player.w:0),
+    y: player.y + 28,
+    vx: player.facing * 18 * power,
+    size: 16 + player.charge/10,
+    color: weapons[player.form].shotColor
   });
-  player.charge=0;
+  player.charge = 0;
 }
 
-// 主循環
 function update(){
   // 移動
-  player.vx=0;
-  if(keys['a']){player.vx=-SPEED;player.facing=-1;}
-  if(keys['d']){player.vx=SPEED;player.facing=1;}
-  if(keys['w']&&player.onGround) player.vy=JUMP;
+  player.vx = 0;
+  if(keys['a']){ player.vx = -5.5; player.facing = -1; }
+  if(keys['d']){ player.vx = 5.5; player.facing = 1; }
+  if(keys['w'] && player.onGround) player.vy = -17;
 
   // 蓄力
-  if(keys['j']) player.charge=Math.min(player.charge+15,300);
-  else if(player.charge>30) weapons[player.form].shot();
+  if(keys['j']) player.charge = Math.min(player.charge+16,300);
+  else if(player.charge>40) shoot();
 
-  player.vy+=G; player.x+=player.vx; player.y+=player.vy;
+  player.vy += 0.8;
+  player.x += player.vx;
+  player.y += player.vy;
 
   // 平台碰撞
-  player.onGround=false;
+  player.onGround = false;
   platforms.forEach(p=>{
-    if(collide(player,p)){
-      if(player.vy>0){
-        player.y=p.y-player.h;
-        player.vy=0;
-        player.onGround=true;
-      }
+    if(player.x < p.x+p.w && player.x+player.w > p.x &&
+       player.y < p.y+p.h && player.y+player.h > p.y && player.vy > 0){
+      player.y = p.y - player.h;
+      player.vy = 0;
+      player.onGround = true;
     }
   });
 
-  // 相機跟隨（真正的橫版捲軸！）
-  cam.x = player.x - canvas.width/3;
+  // 相機捲軸（經典洛克人感覺）
+  cam.x = player.x - 300;
+  if(cam.x < 0) cam.x = 0;
 
   // 撿武器變身
-  items = items.filter(item=>{
-    if(collide(player,item)){
-      player.form = item.type;
-      document.getElementById('weapon').textContent = weapons[item.type].name;
-      createParticles(item.x+20, item.y+20, weapons[item.type].color, 30);
+  items = items.filter(i=>{
+    if(Math.abs(player.x+20 - i.x-20)<50 && Math.abs(player.y+30 - i.y-20)<50){
+      player.form = i.type;
+      document.getElementById('weapon').textContent = weapons[i.type].name;
+      for(let j=0;j<30;j++){
+        particles.push({x:i.x,y:i.y,vx:(Math.random()-0.5)*12,vy:(Math.random()-0.5)*12,color:weapons[i.type].color,life:30});
+      }
       return false;
     }
     return true;
   });
 
-  // 更新子彈、敵人、碰撞、得分
-  bullets.forEach((b,i)=>{
-    b.x+=b.vx; b.y+=b.vy;
-    if(b.x<-100||b.x>canvas.width+100) bullets.splice(i,1);
-  });
+  // 更新子彈與敵人（碰撞、得分等）
+  bullets.forEach((b,i)=>{ b.x+=b.vx; if(b.x<-100||b.x>canvas.width+200) bullets.splice(i,1); });
+  enemies.forEach((e,i)=>{ e.x+=e.vx; if(e.x<-100) enemies.splice(i,1); });
+
+  document.getElementById('score').textContent = score;
 }
 
 function draw(){
@@ -128,81 +137,80 @@ function draw(){
   ctx.translate(-cam.x,0);
 
   // 背景星星
-  ctx.fillStyle='#fff';
+  ctx.fillStyle = '#ffffff';
   for(let i=0;i<200;i++){
-    const x = (i*123 + Date.now()/20)%3000;
-    ctx.globalAlpha = 0.3 + Math.sin(Date.now()/1000)*0.3;
-    ctx.fillRect(x, i*20%400, 2, 2);
+    let x = (i*87 + Date.now()/20) % 3500;
+    ctx.globalAlpha = 0.3 + Math.sin(Date.now()/1000)*0.2;
+    ctx.fillRect(x, i*13%480, 2, 2);
   }
-  ctx.globalAlpha=1;
+  ctx.globalAlpha = 1;
 
-  // 平台（發光）
+  // 平台（經典藍色發光）
   platforms.forEach(p=>{
-    ctx.fillStyle='#0088ff';
-    ctx.shadowColor='#00ffff'; ctx.shadowBlur=30;
+    ctx.fillStyle = '#0088ff';
+    ctx.shadowColor = '#00ffff';
+    ctx.shadowBlur = 30;
     ctx.fillRect(p.x,p.y,p.w,p.h);
   });
-  ctx.shadowBlur=0;
+  ctx.shadowBlur = 0;
 
-  // 玩家（根據武器變色）
+  // 玩家（武器變色）
   ctx.fillStyle = weapons[player.form].color;
   ctx.shadowColor = weapons[player.form].color;
   ctx.shadowBlur = 40;
-  ctx.fillRect(player.x+5,player.y+5,player.w-10,player.h-10);
+  ctx.fillRect(player.x+6,player.y+6,player.w-12,player.h-12);
 
   // 蓄力條
   if(player.charge>30){
-    ctx.fillStyle='rgba(255,255,255,0.9)';
-    ctx.fillRect(player.x,player.y-15,(player.charge/300)*player.w,8);
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(player.x+5,player.y-10,(player.charge/300)*40,6);
   }
-  ctx.shadowBlur=0;
+  ctx.shadowBlur = 0;
 
   // 子彈
   bullets.forEach(b=>{
-    ctx.shadowColor=b.color; ctx.shadowBlur=25;
-    ctx.fillStyle=b.color;
+    ctx.shadowColor = b.color;
+    ctx.shadowBlur = 25;
+    ctx.fillStyle = b.color;
     ctx.fillRect(b.x,b.y,b.size,b.size);
   });
-  ctx.shadowBlur=0;
+  ctx.shadowBlur = 0;
 
   // 敵人
   enemies.forEach(e=>{
-    ctx.fillStyle='#ff0066';
-    ctx.fillRect(e.x,e.y,40,50);
+    ctx.fillStyle = '#ff0088';
+    ctx.fillRect(e.x,e.y,e.w,e.h);
   });
 
   // 武器道具（旋轉發光）
-  items.forEach(item=>{
+  items.forEach(i=>{
     ctx.save();
-    ctx.translate(item.x+20,item.y+20);
-    ctx.rotate(Date.now()/300);
-    ctx.shadowColor=weapons[item.type].color;
-    ctx.shadowBlur=50;
-    ctx.fillStyle=weapons[item.type].color;
+    ctx.translate(i.x+20,i.y+20);
+    ctx.rotate(Date.now()/400);
+    ctx.shadowColor = weapons[i.type].color;
+    ctx.shadowBlur = 50;
+    ctx.fillStyle = weapons[i.type].color;
     ctx.fillRect(-20,-20,40,40);
     ctx.restore();
   });
 
+  // 粒子
+  particles = particles.filter(p=>{
+    p.x+=p.vx; p.y+=p.vy; p.life--;
+    ctx.fillStyle = p.color;
+    ctx.globalAlpha = p.life/30;
+    ctx.fillRect(p.x,p.y,6,6);
+    return p.life>0;
+  });
+  ctx.globalAlpha=1;
+
   ctx.restore();
 }
 
-function collide(a,b){
-  return a.x<a.x+b.w&&a.x+a.w>b.x&&a.y<b.y+b.h&&a.y+a.h>b.y;
-}
-
-function createParticles(x,y,color,count=20){
-  for(let i=0;i<count;i++){
-    particles.push({x,y,vx:(Math.random()-0.5)*10,vy:(Math.random()-0.5)*10,life:30,color});
-  }
-}
-
-// 鍵盤
-const keys={};
-document.addEventListener('keydown',e=>keys[e.key.toLowerCase()]=true);
-document.addEventListener('keyup',e=>keys[e.key.toLowerCase()]=false);
-
 function loop(){
-  update(); draw(); requestAnimationFrame(loop);
+  update();
+  draw();
+  requestAnimationFrame(loop);
 }
 loop();
 </script>
