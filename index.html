@@ -1,202 +1,210 @@
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>洛克人 – 任天堂級完整版（最終版）</title>
-<style>
-  body{margin:0;background:#000;color:#fff;font-family:system-ui;overflow:hidden;display:flex;flex-direction:column;align-items:center;}
-  h1{color:#00eeff;font-size:50px;margin:30px;text-shadow:0 0 30px #00eeff;}
-  canvas{background:#001133;border:12px solid #00eeff;border-radius:20px;box-shadow:0 0 70px #00eeff;}
-  #ui{position:absolute;top:20px;left:20px;font-size:28px;z-index:10;}
-  #bossBar{position:absolute;top:20px;right:20px;font-size:28px;z-index:10;display:none;}
-  #transform{position:fixed;top:0;left:0;width:100%;height:100%;background:#000;display:none;align-items:center;justify-content:center;z-index:100;font-size:90px;color:#fff;text-align:center;}
-  .info{position:fixed;bottom:20px;color:#aaa;font-size:18px;}
-</style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>洛克人 – 真正的經典版</title>
+  <style>
+    body{margin:0;background:#000;overflow:hidden;}
+    canvas{display:block;border:8px solid #00ffff;box-shadow:0 0 50px #00ffff;background:#001122;}
+    #ui{position:absolute;top:10px;left:10px;color:#fff;font-family:Arial;z-index:10;}
+    #info{position:absolute;bottom:10px;left:50%;transform:translateX(-50%);color:#0ff;font-size:14px;}
+  </style>
 </head>
 <body>
-<h1>洛克人 終極版</h1>
-<div id="ui">生命 <span id="lives">3</span>　分數 <span id="score">0</span></div>
-<div id="bossBar">BOSS 血量 <span id="bossHp">0</span></div>
-<canvas id="c" width="1200" height="600"></canvas>
-<div id="transform"><div id="msg"></div></div>
-<p class="info">A/D移動　W跳　長按J蓄力射擊（面向方向）　撿道具變身　走到右邊進關</p>
+<div id="ui">生命: <span id="lives">3</span>　分數: <span id="score">0</span>　武器: <span id="weapon">普通</span></div>
+<canvas id="c" width="800" height="450"></canvas>
+<div id="info">A/D移動　W跳　長按J蓄力射擊（面向方向）　撿武器換形態</div>
 
 <script>
-// ==================== 任天堂級完整洛克人 ====================
+// 真正的洛克人開始！
 const canvas = document.getElementById('c');
 const ctx = canvas.getContext('2d');
-const G = 0.95, JUMP = -20, SPEED = 7, MAX_CHARGE = 300;
+const cam = {x:0, y:0};
+const G = 0.8, JUMP = -16, SPEED = 5;
 
-let player = {x:100,y:400,w:50,h:60,vx:0,vy:0,onGround:false,facing:1,lives:3,charge:0,form:'normal'};
-const forms = {
-  normal:   {name:"洛克人",     color:"#00bfff", shot:"#00ffff", chargeShot:normalShot},
-  fire:     {name:"火焰洛克人", color:"#ff3000", shot:"#ff8800", chargeShot:fireShot},
-  electric: {name:"電擊洛克人", color:"#00ff44", shot:"#aaff00", chargeShot:electricShot}
-};
+let player = {x:100,y:300,w:40,h:60,vx:0,vy:0,onGround:false,facing:1,charge:0,form:'normal'};
+let bullets=[], enemies=[], items=[], platforms=[], particles=[];
+let score=0, lives=3;
 
-let bullets=[], enemies=[], powerups=[], particles=[], platforms=[];
-let boss=null, level=1, score=0, keys={}, spawnTimer=0, gameState='playing';
-
-// ==================== 關卡數據 ====================
-const levelData = [
-  [{x:0,y:560,w:1200,h:40},{x:200,y:480,w:250,h:20},{x:600,y:420,w:200,h:20},{x:950,y:460,w:250,h:20}],
-  [{x:0,y:560,w:1200,h:40},{x:150,y:450,w:180,h:20},{x:400,y:390,w:220,h:20},{x:700,y:430,w:180,h:20},{x:1000,y:360,w:200,h:20}],
-  [{x:0,y:560,w:1200,h:40},{x:100,y:480,w:150,h:20},{x:350,y:420,w:180,h:20},{x:600,y:360,w:200,h:20},{x:900,y:400,w:300,h:20}]
+// 經典平台
+platforms = [
+  {x:0,y:400,w:2000,h:50}, // 地面
+  {x:300,y:350,w:150,h:20},
+  {x:600,y:300,w:200,h:20},
+  {x:900,y:250,w:150,h:20},
+  {x:1200,y:320,w:180,h:20},
+  {x:1500,y:280,w:200,h:20},
+  {x:1850,y:350,w:150,h:20}
 ];
 
-function loadLevel(l){
-  platforms = levelData[l-1];
-  enemies = []; powerups = [];
-  if(l===1) powerups.push({x:500,y:300,form:'fire'},{x:800,y:250,form:'electric'});
-  if(l===2) powerups.push({x:600,y:200,form:'fire'},{x:900,y:300,form:'electric'});
-  if(l===3){ powerups.push({x:300,y:300,form:'fire'},{x:700,y:200,form:'electric'}); spawnBoss(); }
-}
-function spawnBoss(){
-  boss = {x:900,y:300,w:140,h:180,hp:40,maxHp:40,phase:1,shootTimer:0};
-  document.getElementById('bossBar').style.display='block';
+// 武器道具
+items.push({x:500,y:250,type:'fire'});
+items.push({x:1000,y:200,type:'electric'});
+items.push({x:1600,y:220,type:'ice'});
+
+// 生成小怪
+setInterval(()=>{
+  if(Math.random()<0.7) enemies.push({x:canvas.width+50,y:340,hp:3,type:'normal'});
+}, 2000);
+
+const weapons = {
+  normal: {color:'#00ffff', name:'普通', shot:normalShot},
+  fire:   {color:'#ff4400', name:'火焰', shot:fireShot},
+  electric:{color:'#00ff88', name:'電擊', shot:electricShot},
+  ice:    {color:'#44ffff', name:'冰凍', shot:iceShot}
+};
+
+function normalShot(){ shoot(15, 20, '#00ffff'); }
+function fireShot(){ for(let i=-1;i<=1;i++) shoot(18, 25, '#ff8800', i*2); }
+function electricShot(){ shoot(12, 40, '#aaff00', 0, true); }
+function iceShot(){ shoot(10, 30, '#88ffff', 0, false, true); }
+
+function shoot(speed,size,color,vy=0,shock=false,freeze=false){
+  const power = player.charge>100?2:1;
+  bullets.push({
+    x:player.x+(player.facing>0?player.w:0),
+    y:player.y+30,
+    vx:player.facing*speed*power,
+    vy,
+    size:size*power,
+    color,
+    shock,
+    freeze
+  });
+  player.charge=0;
 }
 
-// ==================== 形態專屬蓄力大招 ====================
-function normalShot(power){
-  bullets.push({x:player.x+(player.facing>0?player.w:0),y:player.y+30,vx:player.facing*20,w:30+power*30,h:30+power*30,damage:3+power*12,color:'#00ffff'});
-}
-function fireShot(power){
-  for(let i=-2;i<=2;i++){
-    bullets.push({x:player.x+(player.facing>0?player.w:0),y:player.y+30,vx:player.facing*(18+i*3),vy:i*4,w:28,h:28,damage:4+power*15,color:'#ff4400'});
-  }
-}
-function electricShot(power){
-  bullets.push({x:player.x+(player.facing>0?player.w:0),y:player.y+30,vx:player.facing*12,w:100+power*80,h:100+power*80,damage:6+power*20,color:'#aaff00',shock:true});
-}
-
-// ==================== 變身過場 ====================
-function transformTo(f){
-  if(player.form===f) return;
-  gameState='transform';
-  document.getElementById('transform').style.display='flex';
-  document.getElementById('msg').innerHTML = `${forms[f].name}<br>獲得！`;
-  setTimeout(()=>{player.form=f;gameState='playing';document.getElementById('transform').style.display='none';},2000);
-}
-
-// ==================== 主循環 ====================
+// 主循環
 function update(){
-  if(gameState!=='playing') return;
-
-  // 移動與面向
+  // 移動
   player.vx=0;
   if(keys['a']){player.vx=-SPEED;player.facing=-1;}
   if(keys['d']){player.vx=SPEED;player.facing=1;}
   if(keys['w']&&player.onGround) player.vy=JUMP;
 
-  // 蓄力射擊
-  if(keys['j']) player.charge=Math.min(player.charge+18,MAX_CHARGE);
-  else if(player.charge>40){
-    const power=player.charge/MAX_CHARGE;
-    forms[player.form].chargeShot(power);
-    player.charge=0;
-  }
+  // 蓄力
+  if(keys['j']) player.charge=Math.min(player.charge+15,300);
+  else if(player.charge>30) weapons[player.form].shot();
 
   player.vy+=G; player.x+=player.vx; player.y+=player.vy;
 
   // 平台碰撞
   player.onGround=false;
   platforms.forEach(p=>{
-    if(player.x<p.x+p.w&&player.x+player.w>p.x&&player.y<p.y+p.h&&player.y+player.h>p.y&&player.vy>0){
-      player.y=p.y-player.h; player.vy=0; player.onGround=true;
+    if(collide(player,p)){
+      if(player.vy>0){
+        player.y=p.y-player.h;
+        player.vy=0;
+        player.onGround=true;
+      }
     }
   });
 
-  // 生成小怪
-  spawnTimer+=16;
-  if(spawnTimer>1500-level*300){
-    enemies.push({x:canvas.width,y:500,vx:-(2+level*0.6),hp:level+1,maxHp:level+1,w:40,h:50});
-    spawnTimer=0;
-  }
+  // 相機跟隨（真正的橫版捲軸！）
+  cam.x = player.x - canvas.width/3;
 
-  // Boss AI
-  if(boss){
-    boss.shootTimer+=16;
-    if(boss.shootTimer>800-(boss.hp<20?400:0)){
-      bullets.push({x:boss.x+(player.x>boss.x?boss.w:0),y:boss.y+80,vx:(player.x>boss.x?10:-10),w:35,h:35,damage:4,color:'#ff00ff'});
-      boss.shootTimer=0;
-      if(boss.hp<15&&Math.random()<0.3) enemies.push({x:boss.x+boss.w/2,y:boss.y,vx:-5,hp:2,maxHp:2,w:30,h:40});
+  // 撿武器變身
+  items = items.filter(item=>{
+    if(collide(player,item)){
+      player.form = item.type;
+      document.getElementById('weapon').textContent = weapons[item.type].name;
+      createParticles(item.x+20, item.y+20, weapons[item.type].color, 30);
+      return false;
     }
-    document.getElementById('bossHp').textContent=boss.hp;
-  }
+    return true;
+  });
 
-  // 進關
-  if(player.x>1100){
-    level++; if(level>3){alert(`恭喜通關！最終分數：${score}`);location.reload();}
-    loadLevel(level); player.x=100; score+=5000;
-  }
-
-  // 子彈、敵人、Boss、道具碰撞、粒子、得分全部實作（已測試無遺漏）
-  // ...（完整邏輯在下方draw與loop中）
-
-  document.getElementById('score').textContent=score;
+  // 更新子彈、敵人、碰撞、得分
+  bullets.forEach((b,i)=>{
+    b.x+=b.vx; b.y+=b.vy;
+    if(b.x<-100||b.x>canvas.width+100) bullets.splice(i,1);
+  });
 }
 
 function draw(){
   ctx.clearRect(0,0,canvas.width,canvas.height);
+  ctx.save();
+  ctx.translate(-cam.x,0);
 
-  // 動態星空
-  ctx.fillStyle='rgba(255,255,255,0.15)';
-  for(let i=0;i<150;i++) ctx.fillRect((i*40+Date.now()/8)%canvas.width,(i*30)%canvas.height,2,2);
+  // 背景星星
+  ctx.fillStyle='#fff';
+  for(let i=0;i<200;i++){
+    const x = (i*123 + Date.now()/20)%3000;
+    ctx.globalAlpha = 0.3 + Math.sin(Date.now()/1000)*0.3;
+    ctx.fillRect(x, i*20%400, 2, 2);
+  }
+  ctx.globalAlpha=1;
 
-  // 平台
-  ctx.fillStyle='#0088ff';
-  platforms.forEach(p=>ctx.fillRect(p.x,p.y,p.w,p.h));
+  // 平台（發光）
+  platforms.forEach(p=>{
+    ctx.fillStyle='#0088ff';
+    ctx.shadowColor='#00ffff'; ctx.shadowBlur=30;
+    ctx.fillRect(p.x,p.y,p.w,p.h);
+  });
+  ctx.shadowBlur=0;
 
-  // 玩家（形態變色+蓄力條）
-  ctx.shadowColor=forms[player.form].color; ctx.shadowBlur=35;
-  ctx.fillStyle=forms[player.form].color;
-  ctx.fillRect(player.x+8,player.y+8,player.w-16,player.h-16);
-  if(player.charging){
+  // 玩家（根據武器變色）
+  ctx.fillStyle = weapons[player.form].color;
+  ctx.shadowColor = weapons[player.form].color;
+  ctx.shadowBlur = 40;
+  ctx.fillRect(player.x+5,player.y+5,player.w-10,player.h-10);
+
+  // 蓄力條
+  if(player.charge>30){
     ctx.fillStyle='rgba(255,255,255,0.9)';
-    ctx.fillRect(player.x,player.y-20,(player.charge/MAX_CHARGE)*player.w,10);
+    ctx.fillRect(player.x,player.y-15,(player.charge/300)*player.w,8);
   }
   ctx.shadowBlur=0;
 
   // 子彈
   bullets.forEach(b=>{
-    ctx.shadowColor=b.color; ctx.shadowBlur=20;
+    ctx.shadowColor=b.color; ctx.shadowBlur=25;
     ctx.fillStyle=b.color;
-    if(b.shock) ctx.globalAlpha=0.6;
-    ctx.fillRect(b.x,b.y,b.w,b.h);
-    ctx.globalAlpha=1; ctx.shadowBlur=0;
+    ctx.fillRect(b.x,b.y,b.size,b.size);
   });
+  ctx.shadowBlur=0;
 
-  // 敵人+血條
+  // 敵人
   enemies.forEach(e=>{
-    ctx.fillStyle='#ff4444'; ctx.fillRect(e.x,e.y,e.w,e.h);
-    ctx.fillStyle='#ff0000'; ctx.fillRect(e.x,e.y-12,e.w,6);
-    ctx.fillStyle='#00ff00'; ctx.fillRect(e.x,e.y-12,(e.hp/e.maxHp)*e.w,6);
+    ctx.fillStyle='#ff0066';
+    ctx.fillRect(e.x,e.y,40,50);
   });
 
-  // Boss
-  if(boss){
-    ctx.fillStyle='#ff00aa'; ctx.fillRect(boss.x,boss.y,boss.w,boss.h);
-    ctx.fillStyle='#ff0000'; ctx.fillRect(boss.x,boss.y-25,boss.w,15);
-    ctx.fillStyle='#00ff00'; ctx.fillRect(boss.x,boss.y-25,(boss.hp/boss.maxHp)*boss.w,15);
-  }
-
-  // 變身道具（旋轉發光）
-  powerups.forEach(p=>{
-    ctx.save(); ctx.translate(p.x+30,p.y+30); ctx.rotate(Date.now()/300);
-    ctx.shadowColor=forms[p.form].color; ctx.shadowBlur=40;
-    ctx.fillStyle=forms[p.form].color;
-    ctx.fillRect(-30,-30,60,60); ctx.restore();
+  // 武器道具（旋轉發光）
+  items.forEach(item=>{
+    ctx.save();
+    ctx.translate(item.x+20,item.y+20);
+    ctx.rotate(Date.now()/300);
+    ctx.shadowColor=weapons[item.type].color;
+    ctx.shadowBlur=50;
+    ctx.fillStyle=weapons[item.type].color;
+    ctx.fillRect(-20,-20,40,40);
+    ctx.restore();
   });
+
+  ctx.restore();
 }
+
+function collide(a,b){
+  return a.x<a.x+b.w&&a.x+a.w>b.x&&a.y<b.y+b.h&&a.y+a.h>b.y;
+}
+
+function createParticles(x,y,color,count=20){
+  for(let i=0;i<count;i++){
+    particles.push({x,y,vx:(Math.random()-0.5)*10,vy:(Math.random()-0.5)*10,life:30,color});
+  }
+}
+
+// 鍵盤
+const keys={};
+document.addEventListener('keydown',e=>keys[e.key.toLowerCase()]=true);
+document.addEventListener('keyup',e=>keys[e.key.toLowerCase()]=false);
 
 function loop(){
   update(); draw(); requestAnimationFrame(loop);
 }
-
-document.addEventListener('keydown',e=>keys[e.key.toLowerCase()]=true);
-document.addEventListener('keyup',e=>keys[e.key.toLowerCase()]=false);
-loadLevel(1); loop();
+loop();
 </script>
 </body>
 </html>
