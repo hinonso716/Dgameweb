@@ -1,54 +1,57 @@
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>洛克人 – 最終完美版（Boss會打你、小兵會扣血、蓄力一擊必殺）</title>
-  <style>
-    body{margin:0;background:#000;overflow:hidden;font-family:system-ui,sans-serif;}
-    canvas{background:#001122;border:10px solid #00ffff;box-shadow:0 0 60px #00ffff;display:block;}
-    #ui{position:absolute;top:10px;left:10px;color:#fff;font-size:22px;z-index:10;background:rgba(0,0,0,0.5);padding:10px;border-radius:8px;}
-    #level{position:absolute;top:10px;right:10px;color:#fff;font-size:22px;z-index:10;background:rgba(0,0,0,0.5);padding:10px;border-radius:8px;}
-    #boss{position:absolute;top:60px;right:10px;color:#fff;font-size:22px;z-index:10;background:rgba(0,0,0,0.5);padding:10px;border-radius:8px;display:none;}
-    #info{position:absolute;bottom:10px;left:50%;transform:translateX(-50%);color:#00ffff;font-size:18px;background:rgba(0,0,0,0.5);padding:10px;border-radius:8px;}
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>洛克人 – 最終完美版（所有問題已修復 + 無敵閃爍 + 帥氣角色）</title>
+<style>
+  body{margin:0;background:#000;overflow:hidden;font-family:system-ui,sans-serif;}
+  canvas{background:#001133;border:12px solid #00ffff;box-shadow:0 0 70px #00ffff;display:block;}
+  #ui{position:absolute;top:10px;left:10px;color:#fff;font-size:24px;z-index:10;background:rgba(0,0,0,0.6);padding:12px;border-radius:10px;}
+  #level{position:absolute;top:10px;right:10px;color:#fff;font-size:24px;z-index:10;background:rgba(0,0,0,0.6);padding:12px;border-radius:10px;}
+  #boss{position:absolute;top:70px;right:10px;color:#fff;font-size:24px;z-index:10;background:rgba(0,0,0,0.6);padding:12px;border-radius:10px;display:none;}
+  #info{position:absolute;bottom:10px;left:50%;transform:translateX(-50%);color:#00ffff;font-size:18px;background:rgba(0,0,0,0.6);padding:12px;border-radius:10px;}
+</style>
 </head>
 <body>
 
-<div id="ui">
-  生命: <span id="lives">3</span>　分數: <span id="score">0</span>　武器: <span id="weapon">普通</span>
-</div>
+<div id="ui">生命 <span id="lives">3</span>　分數 <span id="score">0</span>　武器 <span id="weapon">普通</span></div>
 <div id="level">關卡 <span id="lvl">1</span>/3</div>
-<div id="boss">BOSS 血量: <span id="bossHp">0</span></div>
+<div id="boss">BOSS 血量 <span id="bossHp">0</span></div>
 
 <canvas id="c" width="1200" height="600"></canvas>
 
-<div id="info">A/D移動　W跳　長按J蓄力射擊（面向方向）　普通攻擊打一半血，蓄力一發秒殺！</div>
+<div id="info">A/D移動　W跳　長按J蓄力射擊　撿道具換形態　第3關BOSS戰</div>
 
 <script>
-// ==================== 最終完美版 – 所有問題已修復 ====================
+// ==================== 最終完美洛克人 ====================
 const canvas = document.getElementById('c');
 const ctx = canvas.getContext('2d');
 
 let cameraX = 0;
-let player = {x:100,y:400,w:48,h:58,vx:0,vy:0,onGround:false,facing:1,charge:0,form:'normal',lives:3};
-let bullets = [], enemies = [], powerups = [], platforms = [], particles = [];
-let boss = null;
-let level = 1, score = 0;
-let keys = {};
-let enemySpawnTimer = 0;
+let player = {
+  x:100,y:400,w:50,h:70,
+  vx:0,vy:0,onGround:false,facing:1,
+  charge:0,form:'normal',lives:3,
+  invulnerable:0 // 無敵時間（毫秒）
+};
+
+let bullets=[],enemies=[],powerups=[],platforms=[],particles=[];
+let boss=null;
+let level=1,score=0;
+let keys={},spawnTimer=0;
 
 const FORMS = {
   normal:   {name:'普通',   color:'#00bfff', shot:'#00ffff'},
-  fire:     {name:'火焰',   color:'#ff4000', shot:'#ff8000'},
-  electric: {name:'電擊',   color:'#00ff40', shot:'#aaff00'},
+  fire:     {name:'火焰',   color:'#ff3000', shot:'#ff8800'},
+  electric: {name:'電擊',   color:'#00ff44', shot:'#aaff00'},
   ice:      {name:'冰凍',   color:'#00ffff', shot:'#88ffff'}
 };
 
 const LEVELS = [
-  [{x:0,y:540,w:4000,h:60},{x:400,y:480,w:200,h:20},{x:800,y:440,w:180,h:20},{x:1200,y:460,w:220,h:20},{x:1700,y:420,w:200,h:20},{x:2200,y:380,w:250,h:20},{x:2800,y:460,w:300,h:20}],
-  [{x:0,y:540,w:4000,h:60},{x:300,y:460,w:180,h:20},{x:700,y:400,w:220,h:20},{x:1100,y:440,w:160,h:20},{x:1600,y:380,w:240,h:20},{x:2100,y:420,w:200,h:20},{x:2700,y:360,w:300,h:20}],
-  [{x:0,y:540,w:4000,h:60},{x:500,y:480,w:300,h:20},{x:1000,y:420,w:250,h:20},{x:1600,y:460,w:400,h:20},{x:2400,y:400,w:500,h:20}]
+  [{x:0,y:540,w:5000,h:60},{x:500,y:480,w:250,h:20},{x:1000,y:440,w:200,h:20},{x:1500,y:460,w:300,h:20},{x:2200,y:400,w:250,h:20},{x:3000,y:460,w:400,h:20}],
+  [{x:0,y:540,w:5000,h:60},{x:400,y:460,w:200,h:20},{x:900,y:400,w:300,h:20},{x:1500,y:440,w:220,h:20},{x:2200,y:380,w:350,h:20},{x:3000,y:420,w:400,h:20}],
+  [{x:0,y:540,w:5000,h:60},{x:600,y:480,w:400,h:20},{x:1300,y:420,w:300,h:20},{x:2000,y:460,w:500,h:20},{x:3000,y:400,w:600,h:20}]
 ];
 
 function loadLevel(l){
@@ -57,13 +60,19 @@ function loadLevel(l){
   document.getElementById('boss').style.display='none';
   document.getElementById('lvl').textContent = l;
 
-  powerups.push({x:600,y:400,type:'fire'},{x:1200,y:360,type:'electric'},{x:2000,y:300,type:'ice'});
+  // 道具（固定在關卡右半部）
+  powerups = [
+    {x:800+Math.random()*1000,y:300+Math.random()*100,type:'fire'},
+    {x:1200+Math.random()*1000,y:250+Math.random()*100,type:'electric'},
+    {x:1800+Math.random()*800,y:300+Math.random()*100,type:'ice'}
+  ];
+
   if(l===3){
     setTimeout(()=>{ 
-      boss = {x:3200,y:340,w:140,h:180,hp:60,maxHp:60,shootTimer:0}; 
-      document.getElementById('boss').style.display='block'; 
-      document.getElementById('bossHp').textContent = 60;
-    },1500);
+      boss = {x:4200,y:340,w:160,h:200,hp:80,maxHp:80,shootTimer:0};
+      document.getElementById('boss').style.display='block';
+      document.getElementById('bossHp').textContent = 80;
+    },2000);
   }
 }
 loadLevel(1);
@@ -71,137 +80,144 @@ loadLevel(1);
 document.addEventListener('keydown',e=>keys[e.key.toLowerCase()]=true);
 document.addEventListener('keyup',e=>keys[e.key.toLowerCase()]=false);
 
+// 蓄力射擊（滿蓄超炫彩特效）
 function shoot(){
   const isCharged = player.charge > 150;
-  const power = isCharged ? 3 : 1; // 蓄力3倍傷害
-  const size = isCharged ? 50 : 20;
-  const damage = isCharged ? 999 : 1; // 蓄力一擊必殺
+  const power = isCharged ? 4 : 1;
+  const size = isCharged ? 80 : 24;
+  const damage = isCharged ? 999 : 1; // 滿蓄一擊必殺
 
   bullets.push({
     x: player.x + (player.facing>0?player.w:0),
-    y: player.y + 28,
-    vx: player.facing * 20 * power,
+    y: player.y + 32,
+    vx: player.facing * 22 * power,
     size: size,
     color: FORMS[player.form].shot,
-    damage: damage
+    damage: damage,
+    trail: isCharged ? 30 : 0 // 滿蓄有尾焰
   });
   player.charge = 0;
 }
 
 function update(){
-  // 玩家移動
-  player.vx = 0;
-  if(keys['a']){ player.vx = -6; player.facing = -1; }
-  if(keys['d']){ player.vx = 6; player.facing = 1; }
-  if(keys['w'] && player.onGround) player.vy = -19;
+  if(keys['a']){ player.vx = -7; player.facing = -1; }
+  if(keys['d']){ player.vx = 7; player.facing = 1; }
+  if(!keys['a']&&!keys['d']) player.vx *= 0.8;
+  if(keys['w'] && player.onGround) player.vy = -21;
 
-  // 蓄力
-  if(keys['j']) player.charge = Math.min(player.charge + 20, 300);
-  else if(player.charge > 30) shoot();
+  if(keys['j']) player.charge = Math.min(player.charge + 22, 300);
+  else if(player.charge > 40) shoot();
 
-  player.vy += 0.9;
+  player.vy += 0.95;
   player.x += player.vx;
   player.y += player.vy;
 
   // 平台碰撞
   player.onGround = false;
   platforms.forEach(p=>{
-    if(player.x < p.x+p.w && player.x+player.w > p.x && player.y < p.y+p.h && player.y+player.h > p.y && player.vy > 0){
+    if(player.x < p.x+p.w && player.x+player.w > p.x &&
+       player.y < p.y+p.h && player.y+player.h > p.y && player.vy > 0){
       player.y = p.y - player.h; player.vy = 0; player.onGround = true;
     }
   });
 
-  // 相機捲軸
-  cameraX = Math.max(0, player.x - 400);
+  cameraX = player.x - 400;
+  if(cameraX < 0) cameraX = 0;
 
-  // 生成小怪
-  enemySpawnTimer += 16;
-  if(enemySpawnTimer > 1600 - level*300){
-    enemies.push({x:canvas.width+100,y:480,hp:2,maxHp:2,w:40,h:50,vx:-(2+level*0.5),shootTimer:0});
-    enemySpawnTimer = 0;
+  // 敵人從關卡最右邊生成
+  spawnTimer += 16;
+  if(spawnTimer > 1400 - level*300){
+    enemies.push({x:4800,y:480,hp:3,maxHp:3,w:44,h:56,vx:-(2.5+level*0.6),shootTimer:Math.random()*1000});
+    spawnTimer = 0;
   }
 
-  // 小怪AI（會動 + 會攻擊）
+  // 小怪AI
   enemies.forEach((e,i)=>{
     e.x += e.vx;
     e.shootTimer += 16;
-    if(e.shootTimer > 1200){
-      bullets.push({x:e.x+(e.vx>0?e.w:0),y:e.y+30,vx:(player.x>e.x?10:-10),size:20,color:'#ff00ff',damage:1,isEnemy:true});
+    if(e.shootTimer > 1400){
+      bullets.push({x:e.x+(e.vx>0?e.w:0),y:e.y+30,vx:(player.x>e.x?12:-12),size:28,color:'#ff00ff',damage:1,isEnemy:true});
       e.shootTimer = 0;
     }
-    if(e.x < cameraX-100) enemies.splice(i,1);
+    if(e.x < cameraX-200) enemies.splice(i,1);
   });
 
-  // Boss AI（會追蹤射擊）
+  // Boss AI
   if(boss){
-    boss.x += Math.sin(Date.now()/800)*1.5;
+    boss.x += Math.sin(Date.now()/600)*2;
     boss.shootTimer += 16;
-    if(boss.shootTimer > 800){
-      for(let i=-1;i<=1;i++){
-        bullets.push({
-          x:boss.x+boss.w/2,y:boss.y+boss.h,
-          vx:(player.x-boss.x)/40 + i*4,
-          vy:6,size:40,color:'#ff00ff',damage:2,isEnemy:true
-        });
+    if(boss.shootTimer > 700){
+      for(let i=-2;i<=2;i++){
+        bullets.push({x:boss.x+boss.w/2,y:boss.y+boss.h,vx:(player.x-boss.x)/30+i*5,vy:8,size:45,color:'#ff00ff',damage:2,isEnemy:true});
       }
       boss.shootTimer = 0;
     }
     document.getElementById('bossHp').textContent = boss.hp;
   }
 
-  // 子彈更新與碰撞
+  // 子彈與碰撞
   bullets.forEach((b,i)=>{
     b.x += b.vx;
+    if(b.trail) for(let j=0;j<3;j++) particles.push({x:b.x+j*10,y:b.y,vx:b.vx*0.1,vy:0,color:b.color,life:15});
 
-    // 玩家子彈打敵人/Boss（普通打一半血，蓄力一擊秒殺）
+    // 玩家子彈打敵人/Boss
     if(!b.isEnemy){
       enemies.forEach((e,j)=>{
         if(b.x < e.x+e.w && b.x+b.size > e.x && b.y < e.y+e.h && b.y+b.size > e.y){
           e.hp -= b.damage;
           bullets.splice(i,1);
-          if(e.hp <= 0){
-            enemies.splice(j,1);
-            score += 100;
-            for(let k=0;k<30;k++) particles.push({x:e.x+20,y:e.y+25,vx:(Math.random()-0.5)*12,vy:(Math.random()-0.5)*12,color:'#ffff00',life:40});
-          }
+          if(e.hp<=0){ enemies.splice(j,1); score+=150; createExplosion(e.x+22,e.y+28); }
         }
       });
       if(boss && b.x < boss.x+boss.w && b.x+b.size > boss.x && b.y < boss.y+boss.h && b.y+b.size > boss.y){
         boss.hp -= b.damage;
         bullets.splice(i,1);
-        if(boss.hp <= 0){
-          score += 10000;
-          alert('恭喜擊敗最終BOSS！總分：'+score);
-          location.reload();
-        }
+        if(boss.hp<=0){ score+=20000; alert('恭喜擊敗最終BOSS！總分：'+score); location.reload(); }
       }
     }
-
-    // 敵人/Boss子彈打玩家（扣血）
-    else if(b.x < player.x+player.w && b.x+b.size > player.x && b.y < player.y+player.h && b.y+b.size > player.y){
+    // 敵人子彈打玩家
+    else if(player.invulnerable <= 0 && b.x < player.x+player.w && b.x+b.size > player.x && b.y < player.y+player.h && b.y+b.size > player.y){
       player.lives--;
-      document.getElementById('lives').textContent = player.lives;
+      player.invulnerable = 120; // 無敵2秒（60fps×2）
       bullets.splice(i,1);
-      if(player.lives <= 0){
-        alert('遊戲結束！最終分數：'+score);
-        location.reload();
-      }
-      // 受傷無敵閃爍
-      player.x = 100;
-      player.y = 400;
+      document.getElementById('lives').textContent = player.lives;
+      if(player.lives<=0){ alert('遊戲結束！最終分數：'+score); location.reload(); }
+      player.x = Math.max(100, player.x-200); // 擊退
     }
   });
 
+  // 撿道具換形態（已修復）
+  powerups = powerups.filter(p=>{
+    if(Math.hypot(player.x+25 - p.x-30, player.y+35 - p.y-30) < 80){
+      player.form = p.type;
+      document.getElementById('weapon').textContent = FORMS[p.type].name;
+      createExplosion(p.x+30,p.y+30,FORMS[p.type].color,60);
+      return false;
+    }
+    return true;
+  });
+
   // 進關
-  if(player.x > 3600){
+  if(player.x > 4600){
     level++;
     if(level>3){ alert('恭喜全關通關！最終分數：'+score); location.reload(); }
     loadLevel(level);
     player.x = 100;
-    score += 5000;
+    score += 10000;
   }
 
+  // 無敵時間遞減
+  if(player.invulnerable > 0) player.invulnerable--;
+
   document.getElementById('score').textContent = score;
+}
+
+function createExplosion(x,y,color='#ffff00',count=40){
+  for(let i=0;i<count;i++){
+    const angle = Math.random()*Math.PI*2;
+    const speed = 3+Math.random()*10;
+    particles.push({x,y,vx:Math.cos(angle)*speed,vy:Math.sin(angle)*speed,color,life:40+Math.random()*20});
+  }
 }
 
 function draw(){
@@ -209,51 +225,84 @@ function draw(){
   ctx.save();
   ctx.translate(-cameraX,0);
 
-  // 背景星星
-  ctx.fillStyle='rgba(255,255,255,0.2)';
-  for(let i=0;i<200;i++) ctx.fillRect((i*80 + Date.now()/10)%5000, i*25%540, 2, 2);
+  // 背景星空
+  ctx.fillStyle='rgba(255,255,255,0.15)';
+  for(let i=0;i<300;i++) ctx.fillRect((i*60 + Date.now()/15)%6000, i*20%540, 2, 2);
 
   // 平台
-  platforms.forEach(p=>{ ctx.fillStyle='#0088ff'; ctx.shadowColor='#00ffff'; ctx.shadowBlur=30; ctx.fillRect(p.x,p.y,p.w,p.h); });
+  platforms.forEach(p=>{ ctx.fillStyle='#0088ff'; ctx.shadowColor='#00ffff'; ctx.shadowBlur=40; ctx.fillRect(p.x,p.y,p.w,p.h); });
   ctx.shadowBlur=0;
 
-  // 玩家
-  ctx.fillStyle = FORMS[player.form].color;
-  ctx.shadowColor = FORMS[player.form].color;
-  ctx.shadowBlur = 40;
-  ctx.fillRect(player.x+6,player.y+6,player.w-12,player.h-12);
-  if(player.charge>30){ ctx.fillStyle='#ffffff'; ctx.fillRect(player.x+4,player.y-12,(player.charge/300)*40,8); }
+  // 玩家（超帥多層次pixel風）
+  if(player.invulnerable===0 || Math.floor(Date.now()/80)%4!==0){ // 無敵閃爍
+    const c = FORMS[player.form].color;
+    ctx.shadowColor = c; ctx.shadowBlur = 50;
+    // 身體
+    ctx.fillStyle = c; ctx.fillRect(player.x+8,player.y+8,player.w-16,player.h-16);
+    // 頭盔
+    ctx.fillStyle = '#ffffff'; ctx.fillRect(player.x+14,player.y+12,player.w-28,16);
+    // 眼睛
+    ctx.fillStyle = '#000000'; ctx.fillRect(player.x+18+(player.facing<0?10:0),player.y+18,8,8);
+    // 蓄力條（超炫）
+    if(player.charge>30){
+      ctx.shadowColor = '#ffffff'; ctx.shadowBlur = 30;
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(player.x-10,player.y-20,(player.charge/300)*(player.w+20),12);
+      ctx.shadowBlur = 0;
+    }
+  }
   ctx.shadowBlur=0;
 
-  // 子彈
-  bullets.forEach(b=>{ ctx.shadowColor=b.color; ctx.shadowBlur=30; ctx.fillStyle=b.color; ctx.fillRect(b.x,b.y,b.size,b.size); });
+  // 子彈（滿蓄超大彩虹尾焰）
+  bullets.forEach(b=>{
+    ctx.shadowColor = b.color; ctx.shadowBlur = b.trail?60:30;
+    ctx.fillStyle = b.color;
+    ctx.fillRect(b.x,b.y,b.size,b.size);
+    if(b.trail){
+      for(let i=1;i<8;i++){
+        ctx.globalAlpha = i/8;
+        ctx.fillRect(b.x-i*b.vx/4,b.y,b.size*0.8,b.size*0.8);
+      }
+      ctx.globalAlpha=1;
+    }
+  });
   ctx.shadowBlur=0;
 
   // 小怪 + 血條
   enemies.forEach(e=>{
-    ctx.shadowColor='#ff0088'; ctx.shadowBlur=30;
+    ctx.shadowColor='#ff0088'; ctx.shadowBlur=40;
     ctx.fillStyle='#ff0088'; ctx.fillRect(e.x,e.y,e.w,e.h);
     ctx.shadowBlur=0;
-    ctx.fillStyle='#ff0000'; ctx.fillRect(e.x,e.y-16,e.w,10);
-    ctx.fillStyle='#00ff00'; ctx.fillRect(e.x,e.y-16,(e.hp/e.maxHp)*e.w,10);
+    ctx.fillStyle='#ff0000'; ctx.fillRect(e.x,e.y-18,e.w,10);
+    ctx.fillStyle='#00ff00'; ctx.fillRect(e.x,e.y-18,(e.hp/e.maxHp)*e.w,10);
   });
 
   // Boss
   if(boss){
-    ctx.shadowColor='#ff00aa'; ctx.shadowBlur=60;
+    ctx.shadowColor='#ff00aa'; ctx.shadowBlur=80;
     ctx.fillStyle='#ff00aa'; ctx.fillRect(boss.x,boss.y,boss.w,boss.h);
     ctx.shadowBlur=0;
-    ctx.fillStyle='#ff0000'; ctx.fillRect(boss.x,boss.y-30,boss.w,16);
-    ctx.fillStyle='#00ff00'; ctx.fillRect(boss.x,boss.y-30,(boss.hp/boss.maxHp)*boss.w,16);
+    ctx.fillStyle='#ff0000'; ctx.fillRect(boss.x,boss.y-40,boss.w,20);
+    ctx.fillStyle='#00ff00'; ctx.fillRect(boss.x,boss.y-40,(boss.hp/boss.maxHp)*boss.w,20);
   }
 
-  // 道具
+  // 道具（旋轉發光）
   powerups.forEach(p=>{
-    ctx.save(); ctx.translate(p.x+30,p.y+30); ctx.rotate(Date.now()/300);
-    ctx.shadowColor=FORMS[p.type].color; ctx.shadowBlur=50;
+    ctx.save(); ctx.translate(p.x+30,p.y+30); ctx.rotate(Date.now()/200);
+    ctx.shadowColor=FORMS[p.type].color; ctx.shadowBlur=80;
     ctx.fillStyle=FORMS[p.type].color;
     ctx.fillRect(-30,-30,60,60); ctx.restore();
   });
+
+  // 粒子
+  particles = particles.filter(p=>{
+    p.x+=p.vx; p.y+=p.vy; p.life--;
+    ctx.globalAlpha = p.life/50;
+    ctx.fillStyle = p.color;
+    ctx.fillRect(p.x,p.y,10,10);
+    return p.life>0;
+  });
+  ctx.globalAlpha=1;
 
   ctx.restore();
 }
