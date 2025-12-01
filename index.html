@@ -1,25 +1,31 @@
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>AI 劇本殺 Party</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI 劇本殺 Party v3.0</title>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
   <style>
-    body { font-family: sans-serif; text-align: center; padding: 50px; background: #1a1a2e; color: #eee; }
-    input, button { padding: 15px; margin: 10px; font-size: 18px; }
-    button { background: #e94560; color: white; border: none; border-radius: 10px; cursor: pointer; }
-    h1 { color: #e94560; }
+    body {font-family: sans-serif;text-align: center;padding: 50px;background: #0f0529;color: #eee;}
+    h1 {color:#e94560;font-size: 48px;}
+    button, input {padding: 18px;margin: 10px;font-size: 22px;border-radius: 12px;border:none;}
+    button {background:#e94560;color:white;cursor:pointer;width:320px;}
+    input {width:280px;}
+    .version {position:fixed;bottom:10px;right:15px;color:#666;}
   </style>
 </head>
 <body>
   <h1>AI 劇本殺 Party</h1>
-  <p>一起推理、投票、決定結局！</p>
+  <p style="font-size:24px;">一起投票決定劇情結局！</p>
+  <br><br>
   <button onclick="createRoom()">創建新房間</button>
-  <hr>
-  <input type="text" id="code" placeholder="輸入房間代碼加入" style="width:200px"/>
+  <br><br>
+  <input type="text" id="code" placeholder="輸入6位房間代碼" maxlength="6">
+  <br><br>
   <button onclick="joinRoom()">加入房間</button>
+
+  <div class="version">Version 3.0</div>
 
   <script>
     const firebaseConfig = {
@@ -32,24 +38,18 @@
       appId: "1:226538941888:web:18454a8d370b37341bac25",
       measurementId: "G-1PBF2JYHM2"
     };
-
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
 
     function createRoom() {
       const code = Math.random().toString(36).substring(2,8).toUpperCase();
-      db.ref('rooms/'+code).set({createdAt: Date.now(), players: {}, gameState: 'lobby'}).then(()=>{
-        location.href = `room.html?code=${code}&host=true`;
-      });
+      db.ref('rooms/'+code).set({createdAt:Date.now(),players:{},gameState:'lobby'})
+        .then(()=>location.href=`room.html?code=${code}&host=true`);
     }
-
     function joinRoom() {
-      const code = document.getElementById('code').value.trim().toUpperCase();
-      if(code.length===6){
-        location.href = `room.html?code=${code}`;
-      }else{
-        alert("代碼要是 6 個字母喔！");
-      }
+      let code = document.getElementById('code').value.trim().toUpperCase();
+      if(code.length===6) location.href=`room.html?code=${code}`;
+      else alert("請輸入正確的6位代碼！");
     }
   </script>
 </body>
