@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>AI 劇本殺 Party</title>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+  <style>
+    body { font-family: sans-serif; text-align: center; padding: 50px; background: #1a1a2e; color: #eee; }
+    input, button { padding: 15px; margin: 10px; font-size: 18px; }
+    button { background: #e94560; color: white; border: none; border-radius: 10px; cursor: pointer; }
+    h1 { color: #e94560; }
+  </style>
+</head>
+<body>
+  <h1>AI 劇本殺 Party</h1>
+  <p>一起推理、投票、決定結局！</p>
+  <button onclick="createRoom()">創建新房間</button>
+  <hr>
+  <input type="text" id="code" placeholder="輸入房間代碼加入" style="width:200px"/>
+  <button onclick="joinRoom()">加入房間</button>
+
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyDZo4DmtNTd3-71PtfUOSNw2n276Or3vX8",
+      authDomain: "dgame-web.firebaseapp.com",
+      databaseURL: "https://dgame-web-default-rtdb.asia-southeast1.firebasedatabase.app",
+      projectId: "dgame-web",
+      storageBucket: "dgame-web.firebasestorage.app",
+      messagingSenderId: "226538941888",
+      appId: "1:226538941888:web:18454a8d370b37341bac25",
+      measurementId: "G-1PBF2JYHM2"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
+    function createRoom() {
+      const code = Math.random().toString(36).substring(2,8).toUpperCase();
+      db.ref('rooms/'+code).set({createdAt: Date.now(), players: {}, gameState: 'lobby'}).then(()=>{
+        location.href = `room.html?code=${code}&host=true`;
+      });
+    }
+
+    function joinRoom() {
+      const code = document.getElementById('code').value.trim().toUpperCase();
+      if(code.length===6){
+        location.href = `room.html?code=${code}`;
+      }else{
+        alert("代碼要是 6 個字母喔！");
+      }
+    }
+  </script>
+</body>
+</html>
