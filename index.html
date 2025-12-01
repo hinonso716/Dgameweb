@@ -3,118 +3,192 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>貪吃蛇 – 永不卡死版</title>
+  <title>洛克人 – 簡易版</title>
   <style>
     body {margin:0;background:#000;color:#fff;font-family:system-ui,sans-serif;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;}
-    h1 {color:#ff3b30;font-size:48px;margin:20px;text-shadow:0 0 20px #ff3b30;}
-    canvas {background:#111;border:10px solid #ff3b30;border-radius:20px;box-shadow:0 0 40px #ff3b30;}
-    #score {font-size:50px;margin:30px;letter-spacing:5px;}
-    .info {position:fixed;bottom:20px;color:#666;font-size:18px;}
+    h1 {color:#00bfff;font-size:48px;margin:20px;text-shadow:0 0 20px #00bfff;}
+    canvas {background:#111;border:10px solid #00bfff;border-radius:20px;box-shadow:0 0 40px #00bfff;}
+    #score {font-size:40px;margin:20px;letter-spacing:4px;}
+    #lives {font-size:36px;margin:10px;}
+    .info {position:fixed;bottom:20px;color:#666;font-size:18px;text-align:center;}
   </style>
 </head>
 <body>
-  <h1>貪吃蛇放鬆一下</h1>
+  <h1>洛克人簡易版</h1>
   <div id="score">分數：0</div>
-  <canvas id="c" width="400" height="400"></canvas>
-  <p class="info">方向鍵或滑動 • 按空白鍵重開</p>
+  <div id="lives">生命：3</div>
+  <canvas id="game" width="800" height="400"></canvas>
+  <p class="info">A/D 左右移動 • W 跳躍 • J 射擊 • 手機滑動控制 • 擊敗敵人得分</p>
 
   <script>
-    const canvas = document.getElementById('c');
+    const canvas = document.getElementById('game');
     const ctx = canvas.getContext('2d');
-    const size = 20;
-    let snake = [{x: 200, y: 200}];
-    let food = {x: Math.floor(Math.random()*20)*size, y: Math.floor(Math.random()*20)*size};
-    let dx = size, dy = 0;
+    const GRAVITY = 0.8;
+    const JUMP = -16;
+    const SPEED = 5;
+
+    let player = {x: 50, y: 300, vx: 0, vy: 0, width: 40, height: 50, onGround: false, lives: 3};
+    let bullets = [];
+    let enemies = [];
+    let platforms = [
+      {x: 0, y: 380, width: 800, height: 20},
+      {x: 200, y: 320, width: 150, height: 15},
+      {x: 450, y: 280, width: 120, height: 15},
+      {x: 650, y: 220, width: 150, height: 15}
+    ];
     let score = 0;
+    let keys = {};
     let gameRunning = true;
 
-    function draw() {
-      ctx.fillStyle = '#111';
-      ctx.fillRect(0, 0, 400, 400);
+    // 生成敵人
+    function spawnEnemy() {
+      enemies.push({x: canvas.width, y: 340, vx: -2, width: 30, height: 40});
+    }
+    setInterval(spawnEnemy, 2000);
 
-      // 畫蛇
-      ctx.fillStyle = '#30d158';
-      snake.forEach((part, i) => {
-        ctx.fillRect(part.x + 2, part.y + 2, size - 4, size - 4);
-        if (i === 0) { // 蛇頭
-          ctx.fillStyle = '#34eb5b';
-          ctx.fillRect(part.x + 4, part.y + 4, size - 8, size - 8);
-          ctx.fillStyle = '#30d158';
+    // 鍵盤事件
+    document.addEventListener('keydown', e => keys[e.key.toLowerCase()] = true);
+    document.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
+
+    // 手機觸控
+    let touchStart = {x: 0, y: 0};
+    canvas.addEventListener('touchstart', e => {
+      touchStart = {x: e.touches[0].clientX, y: e.touches[0].clientY};
+    });
+    canvas.addEventListener('touchmove', e => {
+      if (!touchStart.x) return;
+      let dx = e.touches[0].clientX - touchStart.x;
+      let dy = e.touches[0].clientY - touchStart.y;
+      if (Math.abs(dx) > Math.abs(dy)) {
+        player.vx = dx > 0 ? SPEED : -SPEED;
+      } else if (dy > 0) {
+        player.vy = JUMP;
+      }
+      touchStart = {x: 0, y: 0};
+    });
+
+    function update() {
+      if (!gameRunning) return;
+
+      // 玩家控制
+      player.vx = 0;
+      if (keys['a'] || keys['arrowleft']) player.vx = -SPEED;
+      if (keys['d'] || keys['arrowright']) player.vx = SPEED;
+      if ((keys['w'] || keys['arrowup'] || keys[' ']) && player.onGround) {
+        player.vy = JUMP;
+        player.onGround = false;
+      }
+      if (keys['j']) {
+        if (!keys.lastShot || Date.now() - keys.lastShot > 200) {
+          bullets.push({x: player.x + player.width, y: player.y + 20, vx: 8, height: 8});
+          keys.lastShot = Date.now();
+        }
+      }
+
+      // 物理
+      player.vy += GRAVITY;
+      player.x += player.vx;
+      player.y += player.vy;
+
+      // 平台碰撞
+      player.onGround = false;
+      platforms.forEach(p => {
+        if (player.x < p.x + p.width && player.x + player.width > p.x &&
+            player.y < p.y + p.height && player.y + player.height > p.y) {
+          if (player.vy > 0) {
+            player.y = p.y - player.height;
+            player.vy = 0;
+            player.onGround = true;
+          }
         }
       });
 
-      // 畫食物
-      ctx.fillStyle = '#ff3b30';
-      ctx.beginPath();
-      ctx.arc(food.x + 10, food.y + 10, 9, 0, Math.PI * 2);
-      ctx.fill();
+      // 牆壁
+      if (player.x < 0) player.x = 0;
+      if (player.x + player.width > canvas.width) player.x = canvas.width - player.width;
+      if (player.y > canvas.height) {
+        player.lives--;
+        if (player.lives <= 0) {
+          alert(`遊戲結束！最終分數：${score}`);
+          location.reload();
+        } else {
+          player.x = 50;
+          player.y = 300;
+          player.vy = 0;
+        }
+      }
+
+      // 子彈更新
+      bullets = bullets.filter(b => {
+        b.x += b.vx;
+        return b.x < canvas.width;
+      });
+
+      // 敵人更新
+      enemies.forEach(e => {
+        e.x += e.vx;
+        if (e.x < -e.width) enemies = enemies.filter(en => en !== e);
+      });
+
+      // 子彈擊中敵人
+      bullets.forEach((b, bi) => {
+        enemies.forEach((e, ei) => {
+          if (b.x < e.x + e.width && b.x + 10 > e.x && b.y < e.y + e.height && b.y + 10 > e.y) {
+            enemies.splice(ei, 1);
+            bullets.splice(bi, 1);
+            score += 100;
+            document.getElementById('score').textContent = '分數：' + score;
+          }
+        });
+      });
+
+      // 敵人撞玩家
+      enemies.forEach(e => {
+        if (player.x < e.x + e.width && player.x + player.width > e.x &&
+            player.y < e.y + e.height && player.y + player.height > e.y) {
+          player.lives--;
+          document.getElementById('lives').textContent = '生命：' + player.lives;
+          if (player.lives <= 0) {
+            alert(`遊戲結束！最終分數：${score}`);
+            location.reload();
+          } else {
+            player.x = 50;
+            player.y = 300;
+            player.vy = 0;
+          }
+        }
+      });
     }
 
-    function move() {
-      if (!gameRunning) return;
-      const head = {x: snake[0].x + dx, y: snake[0].y + dy};
+    function draw() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-      // 撞牆或自己
-      if (head.x < 0 || head.x >= 400 || head.y < 0 || head.y >= 400 || snake.some(s => s.x === head.x && s.y === head.y)) {
-        gameRunning = false;
-        alert(`遊戲結束！最終分數：${score}\n按空白鍵再玩一局`);
-        return;
-      }
+      // 平台
+      ctx.fillStyle = '#666';
+      platforms.forEach(p => ctx.fillRect(p.x, p.y, p.width, p.height));
 
-      snake.unshift(head);
-      if (head.x === food.x && head.y === food.y) {
-        score += 10;
-        document.getElementById('score').textContent = '分數：' + score;
-        food = {x: Math.floor(Math.random()*20)*size, y: Math.floor(Math.random()*20)*size};
-      } else {
-        snake.pop();
-      }
+      // 玩家
+      ctx.fillStyle = '#00bfff';
+      ctx.fillRect(player.x, player.y, player.width, player.height);
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(player.x + 10, player.y + 10, 20, 20); // 頭盔
 
+      // 子彈
+      ctx.fillStyle = '#ffff00';
+      bullets.forEach(b => ctx.fillRect(b.x, b.y, 10, 8));
+
+      // 敵人
+      ctx.fillStyle = '#ff0000';
+      enemies.forEach(e => ctx.fillRect(e.x, e.y, e.width, e.height));
+    }
+
+    function loop() {
+      update();
       draw();
+      requestAnimationFrame(loop);
     }
 
-    // 改用 requestAnimationFrame（永不被瀏覽器暫停）
-    function gameLoop() {
-      if (gameRunning) {
-        move();
-        setTimeout(gameLoop, 130 - Math.min(score, 80)); // 越來越快
-      }
-    }
-
-    // 鍵盤
-    document.addEventListener('keydown', e => {
-      if ([37,38,39,40].includes(e.keyCode)) e.preventDefault();
-      if (e.keyCode === 37 && dx !== size)  { dx = -size; dy = 0; }
-      if (e.keyCode === 38 && dy !== size)  { dx = 0; dy = -size; }
-      if (e.keyCode === 39 && dx !== -size) { dx = size; dy = 0; }
-      if (e.keyCode === 40 && dy !== -size) { dx = 0; dy = size; }
-      if (e.keyCode === 32) location.reload(); // 空白鍵重開
-    });
-
-    // 手機滑動
-    let sx, sy;
-    canvas.addEventListener('touchstart', e => {
-      sx = e.touches[0].clientX;
-      sy = e.touches[0].clientY;
-      e.preventDefault();
-    }, {passive:false});
-    canvas.addEventListener('touchmove', e => {
-      if (!sx || !sy) return;
-      let x = e.touches[0].clientX - sx;
-      let y = e.touches[0].clientY - sy;
-      if (Math.abs(x) > Math.abs(y)) {
-        if (x > 30 && dx !== -size) { dx = size; dy = 0; }
-        if (x < -30 && dx !== size) { dx = -size; dy = 0; }
-      } else {
-        if (y > 30 && dy !== -size) { dx = 0; dy = size; }
-        if (y < -30 && dy !== size) { dx = 0; dy = -size; }
-      }
-      sx = sy = null;
-      e.preventDefault();
-    }, {passive:false});
-
-    draw();
-    gameLoop(); // 立刻開始！
+    loop();
   </script>
 </body>
 </html>
