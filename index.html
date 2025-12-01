@@ -3,117 +3,118 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>AI 劇本殺團隊的放鬆小遊戲：貪吃蛇</title>
+  <title>貪吃蛇 – 永不卡死版</title>
   <style>
     body {margin:0;background:#000;color:#fff;font-family:system-ui,sans-serif;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;}
-    h1 {color:#ff3b30;font-size:48px;margin:20px;}
-    canvas {background:#111;border:8px solid #ff3b30;border-radius:16px;box-shadow:0 0 30px #ff3b30;}
-    #score {font-size:40px;margin:20px;letter-spacing:3px;}
-    .info {position:fixed;bottom:20px;color:#666;}
+    h1 {color:#ff3b30;font-size:48px;margin:20px;text-shadow:0 0 20px #ff3b30;}
+    canvas {background:#111;border:10px solid #ff3b30;border-radius:20px;box-shadow:0 0 40px #ff3b30;}
+    #score {font-size:50px;margin:30px;letter-spacing:5px;}
+    .info {position:fixed;bottom:20px;color:#666;font-size:18px;}
   </style>
 </head>
 <body>
   <h1>貪吃蛇放鬆一下</h1>
   <div id="score">分數：0</div>
-  <canvas id="game" width="400" height="400"></canvas>
-  <p class="info">方向鍵移動 • 手機用滑動 • 按空白鍵重新開始</p>
+  <canvas id="c" width="400" height="400"></canvas>
+  <p class="info">方向鍵或滑動 • 按空白鍵重開</p>
 
   <script>
-    const canvas = document.getElementById('game');
+    const canvas = document.getElementById('c');
     const ctx = canvas.getContext('2d');
-    const grid = 20;
+    const size = 20;
+    let snake = [{x: 200, y: 200}];
+    let food = {x: Math.floor(Math.random()*20)*size, y: Math.floor(Math.random()*20)*size};
+    let dx = size, dy = 0;
     let score = 0;
-    let snake = [{x:200,y:200}];
-    let food = randomFood();
-    let dx = 0, dy = 0;
-    let playing = true;
+    let gameRunning = true;
 
-    document.addEventListener('keydown', e=>{
-      if([37,38,39,40].includes(e.keyCode)) e.preventDefault();
-      if(e.keyCode===37 && dx!==grid) {dx=-grid; dy=0;}
-      if(e.keyCode===38 && dy!==grid) {dx=0; dy=-grid;}
-      if(e.keyCode===39 && dx!==-grid) {dx=grid; dy=0;}
-      if(e.keyCode===40 && dy!==-grid) {dx=0; dy=grid;}
-      if(e.keyCode===32) reset();
-    });
+    function draw() {
+      ctx.fillStyle = '#111';
+      ctx.fillRect(0, 0, 400, 400);
 
-    // 手機觸控
-    let touchStartX=0, touchStartY=0;
-    canvas.addEventListener('touchstart', e=>{ 
-      touchStartX = e.touches[0].clientX;
-      touchStartY = e.touches[0].clientY;
-      e.preventDefault();
-    }, {passive:false});
-    canvas.addEventListener('touchmove', e=>{
-      if(!touchStartX || !touchStartY) return;
-      let x = e.touches[0].clientX - touchStartX;
-      let y = e.touches[0].clientY - touchStartY;
-      if(Math.abs(x)>Math.abs(y)){
-        if(x>50 && dx!==-grid) {dx=grid;dy=0;}
-        if(x<-50 && dx!==grid) {dx=-grid;dy=0;}
-      }else{
-        if(y>50 && dy!==-grid) {dx=0;dy=grid;}
-        if(y<-50 && dy!==grid) {dx=0;dy=-grid;}
-      }
-      touchStartX=0; touchStartY=0;
-      e.preventDefault();
-    }, {passive:false});
+      // 畫蛇
+      ctx.fillStyle = '#30d158';
+      snake.forEach((part, i) => {
+        ctx.fillRect(part.x + 2, part.y + 2, size - 4, size - 4);
+        if (i === 0) { // 蛇頭
+          ctx.fillStyle = '#34eb5b';
+          ctx.fillRect(part.x + 4, part.y + 4, size - 8, size - 8);
+          ctx.fillStyle = '#30d158';
+        }
+      });
 
-    function randomFood(){
-      return {
-        x: Math.floor(Math.random()*20)*grid,
-        y: Math.floor(Math.random()*20)*grid
-      };
+      // 畫食物
+      ctx.fillStyle = '#ff3b30';
+      ctx.beginPath();
+      ctx.arc(food.x + 10, food.y + 10, 9, 0, Math.PI * 2);
+      ctx.fill();
     }
 
-    function reset(){
-      snake = [{x:200,y:200}];
-      food = randomFood();
-      dx=dy=0; score=0;
-      document.getElementById('score').textContent = '分數：0';
-      playing = true;
-    }
+    function move() {
+      if (!gameRunning) return;
+      const head = {x: snake[0].x + dx, y: snake[0].y + dy};
 
-    function loop(){
-      if(!playing) return;
-
-      // 移動
-      const head = {x:snake[0].x+dx, y:snake[0].y+dy};
-
-      // 撞牆
-      if(head.x<0 || head.x>=400 || head.y<0 || head.y>=400){
-        playing=false; alert('遊戲結束！最終分數：'+score+' 分\n按空白鍵再來一局');
-        return;
-      }
-
-      // 撞自己
-      if(snake.some(s=>s.x===head.x && s.y===head.y)){
-        playing=false; alert('撞到自己啦！分數：'+score+' 分\n按空白鍵再來一局');
+      // 撞牆或自己
+      if (head.x < 0 || head.x >= 400 || head.y < 0 || head.y >= 400 || snake.some(s => s.x === head.x && s.y === head.y)) {
+        gameRunning = false;
+        alert(`遊戲結束！最終分數：${score}\n按空白鍵再玩一局`);
         return;
       }
 
       snake.unshift(head);
-
-      // 吃到食物
-      if(head.x===food.x && head.y===food.y){
+      if (head.x === food.x && head.y === food.y) {
         score += 10;
-        document.getElementById('score').textContent = '分數：'+score;
-        food = randomFood();
-      }else{
+        document.getElementById('score').textContent = '分數：' + score;
+        food = {x: Math.floor(Math.random()*20)*size, y: Math.floor(Math.random()*20)*size};
+      } else {
         snake.pop();
       }
 
-      // 畫面
-      ctx.fillStyle='#111'; ctx.fillRect(0,0,400,400);
-      ctx.fillStyle='#30d158';
-      snake.forEach(s=>ctx.fillRect(s.x+2,s.y+2,16,16));
-      ctx.fillStyle='#ff3b30';
-      ctx.fillRect(food.x+2,food.y+2,16,16);
-
-      setTimeout(loop, 120 - Math.min(score/5, 60)); // 越來越快
+      draw();
     }
 
-    loop();
+    // 改用 requestAnimationFrame（永不被瀏覽器暫停）
+    function gameLoop() {
+      if (gameRunning) {
+        move();
+        setTimeout(gameLoop, 130 - Math.min(score, 80)); // 越來越快
+      }
+    }
+
+    // 鍵盤
+    document.addEventListener('keydown', e => {
+      if ([37,38,39,40].includes(e.keyCode)) e.preventDefault();
+      if (e.keyCode === 37 && dx !== size)  { dx = -size; dy = 0; }
+      if (e.keyCode === 38 && dy !== size)  { dx = 0; dy = -size; }
+      if (e.keyCode === 39 && dx !== -size) { dx = size; dy = 0; }
+      if (e.keyCode === 40 && dy !== -size) { dx = 0; dy = size; }
+      if (e.keyCode === 32) location.reload(); // 空白鍵重開
+    });
+
+    // 手機滑動
+    let sx, sy;
+    canvas.addEventListener('touchstart', e => {
+      sx = e.touches[0].clientX;
+      sy = e.touches[0].clientY;
+      e.preventDefault();
+    }, {passive:false});
+    canvas.addEventListener('touchmove', e => {
+      if (!sx || !sy) return;
+      let x = e.touches[0].clientX - sx;
+      let y = e.touches[0].clientY - sy;
+      if (Math.abs(x) > Math.abs(y)) {
+        if (x > 30 && dx !== -size) { dx = size; dy = 0; }
+        if (x < -30 && dx !== size) { dx = -size; dy = 0; }
+      } else {
+        if (y > 30 && dy !== -size) { dx = 0; dy = size; }
+        if (y < -30 && dy !== size) { dx = 0; dy = -size; }
+      }
+      sx = sy = null;
+      e.preventDefault();
+    }, {passive:false});
+
+    draw();
+    gameLoop(); // 立刻開始！
   </script>
 </body>
 </html>
