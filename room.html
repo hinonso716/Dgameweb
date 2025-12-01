@@ -7,38 +7,37 @@
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
   <style>
-    body { margin:0; font-family: sans-serif; background:#16213e; color:#eee; padding:20px; line-height:1.6; }
-    h1 { color:#e94560; margin:0; }
-    .version { position:fixed; bottom:10px; right:15px; color:#666; font-size:14px; }
-    #codeDisplay { font-size:40px; color:#e94560; font-weight:bold; }
-    #hostControls { background:#e94560; padding:20px; border-radius:15px; margin:20px 0; display:none; }
-    button { padding:14px 24px; margin:5px; background:#0f3460; color:white; border:none; border-radius:10px; font-size:18px; }
-    .optionBtn { background:#e94560; font-size:24px; padding:20px; width:95%; margin:15px auto; display:block; border-radius:12px; }
-    #story { background:rgba(0,0,0,0.5); padding:25px; border-radius:15px; min-height:200px; font-size:19px; }
-    #countdown { font-size:50px; color:#e94560; margin:30px 0; text-align:center; }
-    #result { text-align:center; font-size:20px; color:#0f0; }
+    body {margin:0;font-family:sans-serif;background:#16213e;color:#eee;padding:20px;line-height:1.6;}
+    h1 {color:#e94560;}
+    #codeDisplay {font-size:50px;color:#e94560;font-weight:bold;margin:20px 0;}
+    .version {position:fixed;bottom:10px;right:15px;color:#666;font-size:14px;}
+    #hostControls {background:#e94560;padding:25px;border-radius:15px;margin:30px 0;display:none;}
+    button {padding:16px 28px;margin:8px;background:#0f3460;color:white;border:none;border-radius:12px;font-size:19px;}
+    .optionBtn {background:#e94560;font-size:28px;padding:25px;width:95%;margin:20px auto;display:block;border-radius:15px;}
+    #story {background:rgba(0,0,0,0.5);padding:30px;border-radius:15px;min-height:180px;font-size:21px;}
+    #countdown {font-size:70px;color:#e94560;margin:30px 0;text-align:center;}
+    #result {text-align:center;font-size:24px;color:#0f0;margin:20px 0;}
   </style>
 </head>
 <body>
   <h1>AI 劇本殺</h1>
-  <div id="codeDisplay">房間號載入中…</div>
-  <p>把這個號碼告訴朋友，手機直接加入！</p>
+  <div id="codeDisplay"></div>
+  <p style="font-size:20px;">把這個號碼告訴朋友，手機直接加入！</p>
 
   <div id="lobby">
-    <p style="font-size:20px;">玩家列表：</p>
-    <div id="playerList" style="margin:20px 0; font-size:20px;"></div>
-    
+    <p style="font-size:22px;">玩家列表：</p>
+    <div id="playerList" style="margin:25px 0;font-size:21px;"></div>
     <div id="hostControls">
-      <input type="text" id="theme" placeholder="輸入任何主題（例如：哈利波特殺人、公司團滅、古代後宮鬥）" 
-             style="width:88%; padding:15px; font-size:18px; margin:10px 0;">
-      <br>
+      <input type="text" id="theme" placeholder="輸入任何主題（例：哈利波特殺人、校園靈異、公司團滅）" 
+             style="width:90%;padding:16px;font-size:19px;margin:10px 0;">
+      <br><br>
       <button onclick="startGame()">生成劇本並開始遊戲</button>
     </div>
   </div>
 
-  <div id="game" style="display:none; margin-top:30px;">
+  <div id="game" style="display:none;margin-top:40px;">
     <div id="story"></div>
-    <div id="countdown">30 秒</div>
+    <div id="countdown">30</div>
     <div id="options"></div>
     <div id="result"></div>
   </div>
@@ -46,7 +45,6 @@
   <div class="version">Version 3.0</div>
 
   <script>
-    // 你的 Firebase（不變）
     const firebaseConfig = {
       apiKey: "AIzaSyDZo4DmtNTd3-71PtfUOSNw2n276Or3vX8",
       authDomain: "dgame-web.firebaseapp.com",
@@ -62,110 +60,95 @@
     const urlParams = new URLSearchParams(window.location.search);
     const code = urlParams.get('code');
     const isHost = urlParams.get('host') === 'true';
-
-    // 重要！恢復房間號碼顯示
     document.getElementById('codeDisplay').innerText = code || "錯誤";
 
     const roomRef = firebase.database().ref('rooms/' + code);
-
-    // 安全取 OpenAI key（已設在 Vercel 環境變數的話會自動抓）
-    const OPENAI_KEY = import.meta.env?.VITE_OPENAI_KEY || "請在 Vercel 設定環境變數 OPENAI_API_KEY";
+    // 安全取 key（Vercel 環境變數優先）
+    const OPENAI_KEY = import.meta.env?.VITE_OPENAI_KEY || "sk-請在Vercel設定環境變數OPENAI_API_KEY";
 
     if(isHost) document.getElementById('hostControls').style.display = 'block';
 
-    // 加入玩家
-    const playerName = prompt("輸入你的暱稱（不能空白）", "玩家" + Math.floor(Math.random()*999)) || "神秘玩家";
+    const playerName = prompt("輸入暱稱", "玩家"+Math.floor(Math.random()*999)) || "神秘玩家";
     const playerRef = roomRef.child('players').push();
     playerRef.set({name: playerName});
     playerRef.onDisconnect().remove();
 
-    // 玩家列表
-    roomRef.child('players').on('value', snap => {
+    roomRef.child('players').on('value', s => {
       const list = document.getElementById('playerList');
       list.innerHTML = '';
-      snap.forEach(p => {
-        list.innerHTML += '<p style="margin:8px 0">玩家 ' + p.val().name + '</p>';
-      });
+      s.forEach(p => list.innerHTML += `<p style="margin:10px 0">玩家 ${p.val().name}</p>`);
     });
 
-    // ============ 遊戲主邏輯 ============
     async function startGame() {
       const theme = document.getElementById('theme').value.trim() || "隨機驚悚兇殺案";
-      document.getElementById('hostControls').innerHTML = "<h3 style='color:white'>AI 瘋狂生成中…（約5-10秒）</h3>";
+      document.getElementById('hostControls').innerHTML = "<h3 style='color:white'>AI 正在瘋狂生成劇本…（約5-12秒）</h3>";
 
-      const prompt = `生成一個5輪的劇本殺推理遊戲，主題：${theme}\n每輪：一段劇情（80字內）+ 正好3個選項（A: B: C: 開頭）\n最後根據5次選擇產生不同結局\n嚴格用以下JSON回傳（不要任何多餘文字）：
+      const prompt = `生成一個5輪的劇本殺推理遊戲，主題：${theme}\n每輪一段劇情（80字內）+ 正好3個選項（A: B: C:開頭）\n最後根據選擇產生不同結局\n請嚴格用以下JSON回傳（不要任何多餘說明）：
 {
-  "title": "遊戲標題",
-  "rounds": [{"text":"劇情","options":["A: ...","B: ...","C: ..."]}, ...],
-  "endings": ["好結局","壞結局","真兇是你","全員死亡結局"]
+  "title":"遊戲標題",
+  "rounds":[{"text":"第一輪劇情","options":["A: 調查書房","B: 質問管家","C: 檢查屍體"]}, ...共5輪],
+  "endings":["好結局","壞結局","全員死亡","真兇就是你"]
 }`;
 
       const res = await fetch("https://api.openai.com/v1/chat/completions", {
-        method: "POST",
-        headers: { "Authorization": "Bearer " + OPENAI_KEY, "Content-Type": "application/json" },
-        body: JSON.stringify({ model: "gpt-4o-mini", messages: [{role:"user",content:prompt}], temperature: 0.9 })
+        method:"POST",
+        headers:{"Authorization":"Bearer "+OPENAI_KEY,"Content-Type":"application/json"},
+        body:JSON.stringify({model:"gpt-4o-mini",messages:[{role:"user",content:prompt}],temperature:0.9})
       });
       const data = await res.json();
       let script;
-      try { script = JSON.parse(data.choices[0].message.content); }
-      catch(e) { alert("AI 格式錯了，已用預設劇本"); script = {title:"預設兇殺案", rounds:[{"text":"豪宅發生兇案，你要？","options":["A: 問管家","B: 檢查屍體","C: 逃跑"]}], endings:["你死了"]}; }
+      try {script = JSON.parse(data.choices[0].message.content);} 
+      catch(e) {alert("AI格式錯誤，已用預設劇本"); script={title:"豪宅兇殺案",rounds:[{"text":"發生兇案，你要？","options":["A:問管家","B:檢查屍體","C:逃跑"]}]};}
 
-      roomRef.set({ gameState: "playing", script, currentRound: 0, votes: {}, choicesHistory: [] });
-      document.getElementById('lobby').style.display = 'none';
-      document.getElementById('game').style.display = 'block';
+      roomRef.set({gameState:"playing",script,currentRound:0,votes:{},choicesHistory:[]});
+      document.getElementById('lobby').style.display='none';
+      document.getElementById('game').style.display='block';
     }
 
-    // 監聽遊戲
     roomRef.on('value', snap => {
       const d = snap.val();
-      if (!d || d.gameState !== 'playing') return;
-      if (d.currentRound >= 5) { // 結束
-        const sum = (d.choicesHistory || []).reduce((a,b)=>a+b,0);
+      if(!d || d.gameState !== 'playing') return;
+      if(d.currentRound >= 5){
+        const sum = (d.choicesHistory||[]).reduce((a,b)=>a+b,0);
         const ending = d.script.endings[sum % d.script.endings.length];
-        document.getElementById('story').innerHTML = `<h2>遊戲結束！</h2><p style="font-size:28px">${ending}</p>`;
-        document.getElementById('options').innerHTML = `<button onclick="location.reload()" style="padding:20px;font-size:24px">再玩一局</button>`;
+        document.getElementById('story').innerHTML = `<h2>遊戲結束！</h2><p style="font-size:30px">${ending}</p>`;
+        document.getElementById('options').innerHTML = `<button onclick="location.reload()" style="padding:25px;font-size:28px">再玩一局</button>`;
         document.getElementById('countdown').innerText = "";
         return;
       }
 
       const round = d.script.rounds[d.currentRound];
-      document.getElementById('story').innerHTML = `<h2>${d.script.title}</h2><p style="font-size:20px"><strong>第 ${d.currentRound+1}/5 輪</strong><br>${round.text}</p>`;
+      document.getElementById('story').innerHTML = `<h2>${d.script.title}</h2><p style="font-size:22px"><strong>第 ${d.currentRound+1}/5 輪</strong><br>${round.text}</p>`;
 
       const opts = document.getElementById('options');
       opts.innerHTML = '';
-      round.options.forEach((opt,i) => {
+      round.options.forEach((opt,i)=>{
         const b = document.createElement('button');
-        b.className = 'optionBtn';
+        b.className='optionBtn';
         b.textContent = opt;
-        b.onclick = () => vote(i);
+        b.onclick = ()=>roomRef.child('votes').child(playerRef.key).set(i);
         opts.appendChild(b);
       });
 
-      // 倒數 + 自動下一輪
       let sec = 30;
-      document.getElementById('countdown').innerText = sec + " 秒";
+      document.getElementById('countdown').innerText = sec;
       clearInterval(window.timer);
-      window.timer = setInterval(() => {
+      window.timer = setInterval(()=>{
         sec--;
-        document.getElementById('countdown').innerText = sec + " 秒";
-        if (sec <= 0) { clearInterval(window.timer); advanceRound(); }
-      }, 1000);
+        document.getElementById('countdown').innerText = sec;
+        if(sec<=0) advanceRound();
+      },1000);
 
-      // 即時票數
-      const votes = d.votes || {};
+      const votes = Object.values(d.votes||{});
       const c = [0,0,0];
-      Object.values(votes).forEach(v=>c[v]++);
-      document.getElementById('result').innerHTML = `即時票數：A:${c[0]}  B:${c[1]}  C:${c[2]}`;
+      votes.forEach(v=>c[v]++);
+      document.getElementById('result').innerHTML = `即時票數：A:${c[0]}　B:${c[1]}　C:${c[2]}`;
     });
 
-    function vote(n) {
-      roomRef.child('votes').child(playerRef.key).set(n);
-    }
-
-    async function advanceRound() {
+    async function advanceRound(){
       const snap = await roomRef.once('value');
       const d = snap.val();
-      const votes = Object.values(d.votes || {});
+      const votes = Object.values(d.votes||{});
       const counts = [0,0,0];
       votes.forEach(v=>counts[v]++);
       const winner = counts.indexOf(Math.max(...counts));
