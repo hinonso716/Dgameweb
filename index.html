@@ -3,14 +3,14 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>洛克人 – 最終專業版（所有問題已修復）</title>
+  <title>洛克人 – 完全最終版（小怪會動、BOSS會攻擊、所有形態可射擊）</title>
   <style>
     body{margin:0;background:#000;overflow:hidden;font-family:system-ui,sans-serif;}
     canvas{background:#001122;border:10px solid #00ffff;box-shadow:0 0 60px #00ffff;display:block;}
-    #ui{position:absolute;top:10px;left:10px;color:#fff;font-size:20px;z-index:10;background:rgba(0,0,0,0.5);padding:10px;border-radius:8px;}
-    #level{position:absolute;top:10px;right:10px;color:#fff;font-size:20px;z-index:10;background:rgba(0,0,0,0.5);padding:10px;border-radius:8px;}
-    #boss{position:absolute;top:60px;right:10px;color:#fff;font-size:20px;z-index:10;background:rgba(0,0,0,0.5);padding:10px;border-radius:8px;display:none;}
-    #info{position:absolute;bottom:10px;left:50%;transform:translateX(-50%);color:#00ffff;font-size:16px;background:rgba(0,0,0,0.5);padding:8px 16px;border-radius:8px;}
+    #ui{position:absolute;top:10px;left:10px;color:#fff;font-size:22px;z-index:10;background:rgba(0,0,0,0.5);padding:10px;border-radius:8px;}
+    #level{position:absolute;top:10px;right:10px;color:#fff;font-size:22px;z-index:10;background:rgba(0,0,0,0.5);padding:10px;border-radius:8px;}
+    #boss{position:absolute;top:60px;right:10px;color:#fff;font-size:22px;z-index:10;background:rgba(0,0,0,0.5);padding:10px;border-radius:8px;display:none;}
+    #info{position:absolute;bottom:10px;left:50%;transform:translateX(-50%);color:#00ffff;font-size:18px;background:rgba(0,0,0,0.5);padding:10px;border-radius:8px;}
   </style>
 </head>
 <body>
@@ -26,20 +26,18 @@
 <div id="info">A/D移動　W跳　長按J蓄力射擊（面向方向）　撿道具換形態　走到最右進關</div>
 
 <script>
-// ==================== 專業級洛克人 – 最終完整版 ====================
+// ==================== 真正的洛克人 – 完全整合版 ====================
 const canvas = document.getElementById('c');
 const ctx = canvas.getContext('2d');
 
-// 遊戲狀態
 let cameraX = 0;
 let player = {x:100,y:400,w:48,h:58,vx:0,vy:0,onGround:false,facing:1,charge:0,form:'normal',lives:3};
 let bullets = [], enemies = [], powerups = [], platforms = [], particles = [];
 let boss = null;
 let level = 1, score = 0;
 let keys = {};
-let spawnTimer = 0;
+let enemySpawnTimer = 0, bossShootTimer = 0;
 
-// 形態定義（每種都有獨特顏色與攻擊）
 const FORMS = {
   normal:   {name:'普通',   color:'#00bfff', shot:'#00ffff'},
   fire:     {name:'火焰',   color:'#ff4000', shot:'#ff8000'},
@@ -47,55 +45,44 @@ const FORMS = {
   ice:      {name:'冰凍',   color:'#00ffff', shot:'#88ffff'}
 };
 
-// 關卡數據
 const LEVELS = [
-  // 第1關
-  [{x:0,y:540,w:3000,h:60},{x:400,y:480,w:200,h:20},{x:800,y:440,w:180,h:20},{x:1200,y:460,w:220,h:20},{x:1700,y:420,w:200,h:20},{x:2200,y:380,w:250,h:20}],
-  // 第2關
-  [{x:0,y:540,w:3000,h:60},{x:300,y:460,w:180,h:20},{x:700,y:400,w:220,h:20},{x:1100,y:440,w:160,h:20},{x:1600,y:380,w:240,h:20},{x:2100,y:420,w:200,h:20}],
-  // 第3關（Boss關）
-  [{x:0,y:540,w:3000,h:60},{x:500,y:480,w:300,h:20},{x:1000,y:420,w:250,h:20},{x:1600,y:460,w:400,h:20}]
+  [{x:0,y:540,w:4000,h:60},{x:400,y:480,w:200,h:20},{x:800,y:440,w:180,h:20},{x:1200,y:460,w:220,h:20},{x:1700,y:420,w:200,h:20},{x:2200,y:380,w:250,h:20},{x:2800,y:460,w:300,h:20}],
+  [{x:0,y:540,w:4000,h:60},{x:300,y:460,w:180,h:20},{x:700,y:400,w:220,h:20},{x:1100,y:440,w:160,h:20},{x:1600,y:380,w:240,h:20},{x:2100,y:420,w:200,h:20},{x:2700,y:360,w:300,h:20}],
+  [{x:0,y:540,w:4000,h:60},{x:500,y:480,w:300,h:20},{x:1000,y:420,w:250,h:20},{x:1600,y:460,w:400,h:20},{x:2400,y:400,w:500,h:20}]
 ];
 
-// 載入關卡
-function loadLevel(l) {
+function loadLevel(l){
   platforms = LEVELS[l-1];
-  enemies = [];
-  powerups = [];
-  boss = null;
-  document.getElementById('boss').style.display = 'none';
-  
+  enemies = []; powerups = []; boss = null;
+  document.getElementById('boss').style.display='none';
+  document.getElementById('lvl').textContent = l;
+
   // 道具
-  if(l===1) powerups.push({x:600,y:400,type:'fire'},{x:1400,y:360,type:'electric'});
-  if(l===2) powerups.push({x:800,y:340,type:'ice'},{x:1800,y:380,type:'fire'});
+  powerups.push({x:600,y:400,type:'fire'},{x:1200,y:360,type:'electric'},{x:2000,y:300,type:'ice'});
   if(l===3){
-    powerups.push({x:400,y:400,type:'electric'},{x:1000,y:360,type:'ice'});
-    setTimeout(()=>{ boss = {x:2200,y:380,w:120,h:160,hp:40,maxHp:40,shootTimer:0}; document.getElementById('boss').style.display='block'; },2000);
+    setTimeout(()=>{ boss = {x:3200,y:340,w:140,h:180,hp:50,maxHp:50,shootTimer:0}; document.getElementById('boss').style.display='block'; },1500);
   }
 }
 loadLevel(1);
 
-// 鍵盤
 document.addEventListener('keydown',e=>keys[e.key.toLowerCase()]=true);
 document.addEventListener('keyup',e=>keys[e.key.toLowerCase()]=false);
 
-// 射擊（面向方向 + 蓄力倍率）
-function shoot() {
+function shoot(){
   const power = player.charge > 150 ? 2.5 : (player.charge > 50 ? 1.5 : 1);
   bullets.push({
-    x: player.x + (player.facing > 0 ? player.w : 0),
+    x: player.x + (player.facing>0?player.w:0),
     y: player.y + 28,
     vx: player.facing * 18 * power,
-    size: 16 + player.charge/15,
+    size: 16 + player.charge/10,
     color: FORMS[player.form].shot,
     damage: power * 3
   });
   player.charge = 0;
 }
 
-// 主要更新
-function update() {
-  // 移動與面向
+function update(){
+  // 玩家移動
   player.vx = 0;
   if(keys['a']){ player.vx = -6; player.facing = -1; }
   if(keys['d']){ player.vx = 6; player.facing = 1; }
@@ -111,12 +98,9 @@ function update() {
 
   // 平台碰撞
   player.onGround = false;
-  platforms.forEach(p => {
-    if(player.x < p.x + p.w && player.x + player.w > p.x &&
-       player.y < p.y + p.h && player.y + player.h > p.y && player.vy > 0) {
-      player.y = p.y - player.h;
-      player.vy = 0;
-      player.onGround = true;
+  platforms.forEach(p=>{
+    if(player.x < p.x+p.w && player.x+player.w > p.x && player.y < p.y+p.h && player.y+player.h > p.y && player.vy > 0){
+      player.y = p.y - player.h; player.vy = 0; player.onGround = true;
     }
   });
 
@@ -124,43 +108,62 @@ function update() {
   cameraX = player.x - 400;
   if(cameraX < 0) cameraX = 0;
 
-  // 生成小怪
-  spawnTimer += 16;
-  if(spawnTimer > 1800 - level*400){
-    enemies.push({x:canvas.width+100,y:480,hp:level+2,maxHp:level+2,w:40,h:50,vx:-(2+level*0.5)});
-    spawnTimer = 0;
+  // 生成小怪（會動 + 會攻擊）
+  enemySpawnTimer += 16;
+  if(enemySpawnTimer > 1600 - level*300){
+    enemies.push({x:canvas.width+100,y:480,hp:level+2,maxHp:level+2,w:40,h:50,vx:-(2+level*0.5),shootTimer:0});
+    enemySpawnTimer = 0;
   }
 
-  // Boss AI
+  // 小怪AI
+  enemies.forEach((e,i)=>{
+    e.x += e.vx;
+    e.shootTimer += 16;
+    if(e.shootTimer > 1500){
+      bullets.push({x:e.x+(e.vx>0?e.w:0),y:e.y+30,vx:(player.x>e.x?10:-10),size:20,color:'#ff00ff',damage:1});
+      e.shootTimer = 0;
+    }
+    if(e.x < cameraX-100) enemies.splice(i,1);
+  });
+
+  // Boss AI（第3關）
   if(boss){
+    boss.x += Math.sin(Date.now()/800)*2;
     boss.shootTimer += 16;
-    if(boss.shootTimer > 1000){
-      bullets.push({x:boss.x+(player.x>boss.x?boss.w:0),y:boss.y+80,vx:(player.x>boss.x?12:-12),size:40,color:'#ff00ff',damage:3});
+    if(boss.shootTimer > 900){
+      for(let i=-1;i<=1;i++){
+        bullets.push({x:boss.x+boss.w/2,y:boss.y+boss.h,vx:(player.x-boss.x)/40+i*4,vy:6,size:40,color:'#ff00ff',damage:3});
+      }
       boss.shootTimer = 0;
     }
     document.getElementById('bossHp').textContent = boss.hp;
   }
 
-  // 子彈與敵人碰撞
+  // 子彈與敵人/Boss碰撞
   bullets.forEach((b,i)=>{
-    b.x += b.vx;
+    b.x += b.vx; b.y += b.vy || 0;
+    if(b.x < cameraX-200 || b.x > cameraX+1400) {bullets.splice(i,1); return;}
+
+    // 打小怪
     enemies.forEach((e,j)=>{
-      if(b.x < e.x+e.w && b.x+b.size > e.x && b.y < e.y+e.h && b.y+b.size > e.y){
-        e.hp -= b.damage;
+      if(b.x < e.x+e.w && b.x+b.size > e.x && b.y < e.y+e.h && b.y+b.size > e.y && b.color !== '#ff00ff'){
+        e.hp -= b.damage || 1;
         bullets.splice(i,1);
         if(e.hp <= 0){
           enemies.splice(j,1);
           score += 100;
-          for(let k=0;k<20;k++) particles.push({x:e.x+e.w/2,y:e.y+e.h/2,vx:(Math.random()-0.5)*10,vy:(Math.random()-0.5)*10,color:'#ffff00',life:30});
+          for(let k=0;k<30;k++) particles.push({x:e.x+20,y:e.y+25,vx:(Math.random()-0.5)*12,vy:(Math.random()-0.5)*12,color:'#ffff00',life:40});
         }
       }
     });
-    if(boss && b.x < boss.x+boss.w && b.x+b.size > boss.x && b.y < boss.y+boss.h && b.y+b.size > boss.y){
-      boss.hp -= b.damage;
+
+    // 打Boss
+    if(boss && b.color !== '#ff00ff' && b.x < boss.x+boss.w && b.x+b.size > boss.x && b.y < boss.y+boss.h && b.y+b.size > boss.y){
+      boss.hp -= b.damage || 1;
       bullets.splice(i,1);
       if(boss.hp <= 0){
-        score += 5000;
-        alert('恭喜擊敗BOSS！最終分數：'+score);
+        score += 10000;
+        alert('恭喜擊敗最終BOSS！總分：'+score);
         location.reload();
       }
     }
@@ -171,23 +174,23 @@ function update() {
     if(Math.hypot(player.x+24 - (p.x+30), player.y+29 - (p.y+30)) < 60){
       player.form = p.type;
       document.getElementById('weapon').textContent = FORMS[p.type].name;
-      for(let i=0;i<40;i++) particles.push({x:p.x+30,y:p.y+30,vx:(Math.random()-0.5)*15,vy:(Math.random()-0.5)*15,color:FORMS[p.type].color,life:40});
+      for(let i=0;i<50;i++) particles.push({x:p.x+30,y:p.y+30,vx:(Math.random()-0.5)*15,vy:(Math.random()-0.5)*15,color:FORMS[p.type].color,life:50});
       return false;
     }
     return true;
   });
 
   // 進關
-  if(player.x > 2800){
+  if(player.x > 3600){
     level++;
-    if(level>3){ alert('恭喜全關通關！分數：'+score); location.reload(); }
+    if(level>3){ alert('恭喜全關通關！最終分數：'+score); location.reload(); }
     loadLevel(level);
     player.x = 100;
-    score += 3000;
+    score += 5000;
   }
 
   document.getElementById('score').textContent = score;
-  document.getElementById('lvl').textContent = level;
+  document.getElementById('lives').textContent = player.lives;
 }
 
 function draw(){
@@ -196,48 +199,39 @@ function draw(){
   ctx.translate(-cameraX,0);
 
   // 背景星星
-  ctx.fillStyle='rgba(255,255,255,0.3)';
-  for(let i=0;i<200;i++) ctx.fillRect((i*80 + Date.now()/10)%4000, i*25%540, 2, 2);
+  ctx.fillStyle='rgba(255,255,255,0.2)';
+  for(let i=0;i<200;i++) ctx.fillRect((i*80 + Date.now()/10)%5000, i*25%540, 2, 2);
 
   // 平台
-  platforms.forEach(p=>{
-    ctx.fillStyle='#0088ff';
-    ctx.shadowColor='#00ffff'; ctx.shadowBlur=30;
-    ctx.fillRect(p.x,p.y,p.w,p.h);
-  });
+  platforms.forEach(p=>{ ctx.fillStyle='#0088ff'; ctx.shadowColor='#00ffff'; ctx.shadowBlur=30; ctx.fillRect(p.x,p.y,p.w,p.h); });
   ctx.shadowBlur=0;
 
-  // 玩家（形態變色）
+  // 玩家
   ctx.fillStyle = FORMS[player.form].color;
   ctx.shadowColor = FORMS[player.form].color;
   ctx.shadowBlur = 40;
   ctx.fillRect(player.x+6,player.y+6,player.w-12,player.h-12);
-
-  // 蓄力條
-  if(player.charge>30){
-    ctx.fillStyle='#ffffff';
-    ctx.fillRect(player.x+4,player.y-12,(player.charge/300)*40,8);
-  }
+  if(player.charge>30){ ctx.fillStyle='#ffffff'; ctx.fillRect(player.x+4,player.y-12,(player.charge/300)*40,8); }
   ctx.shadowBlur=0;
 
   // 子彈
-  bullets.forEach(b=>{
-    ctx.shadowColor=b.color; ctx.shadowBlur=30;
-    ctx.fillStyle=b.color;
-    ctx.fillRect(b.x,b.y,b.size,b.size);
-  });
+  bullets.forEach(b=>{ ctx.shadowColor=b.color; ctx.shadowBlur=30; ctx.fillStyle=b.color; ctx.fillRect(b.x,b.y,b.size,b.size); });
   ctx.shadowBlur=0;
 
-  // 敵人 + 血條
+  // 小怪 + 血條
   enemies.forEach(e=>{
+    ctx.shadowColor='#ff0088'; ctx.shadowBlur=30;
     ctx.fillStyle='#ff0088'; ctx.fillRect(e.x,e.y,e.w,e.h);
-    ctx.fillStyle='#ff0000'; ctx.fillRect(e.x,e.y-14,e.w,8);
-    ctx.fillStyle='#00ff00'; ctx.fillRect(e.x,e.y-14,(e.hp/e.maxHp)*e.w,8);
+    ctx.shadowBlur=0;
+    ctx.fillStyle='#ff0000'; ctx.fillRect(e.x,e.y-16,e.w,10);
+    ctx.fillStyle='#00ff00'; ctx.fillRect(e.x,e.y-16,(e.hp/e.maxHp)*e.w,10);
   });
 
   // Boss
   if(boss){
+    ctx.shadowColor='#ff00aa'; ctx.shadowBlur=60;
     ctx.fillStyle='#ff00aa'; ctx.fillRect(boss.x,boss.y,boss.w,boss.h);
+    ctx.shadowBlur=0;
     ctx.fillStyle='#ff0000'; ctx.fillRect(boss.x,boss.y-30,boss.w,16);
     ctx.fillStyle='#00ff00'; ctx.fillRect(boss.x,boss.y-30,(boss.hp/boss.maxHp)*boss.w,16);
   }
@@ -253,7 +247,7 @@ function draw(){
   // 粒子
   particles = particles.filter(p=>{
     p.x+=p.vx; p.y+=p.vy; p.life--;
-    ctx.globalAlpha = p.life/30;
+    ctx.globalAlpha = p.life/50;
     ctx.fillStyle = p.color;
     ctx.fillRect(p.x,p.y,8,8);
     return p.life>0;
@@ -263,9 +257,7 @@ function draw(){
   ctx.restore();
 }
 
-function loop(){
-  update(); draw(); requestAnimationFrame(loop);
-}
+function loop(){ update(); draw(); requestAnimationFrame(loop); }
 loop();
 </script>
 </body>
