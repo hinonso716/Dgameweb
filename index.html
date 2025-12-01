@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>洛克人 – 最終完美版（所有問題已修復 + 無敵閃爍 + 帥氣角色）</title>
+<title>洛克人 – 終極平衡版（難度合理 + 滿蓄金色光環 + 8-bit音樂）</title>
 <style>
   body{margin:0;background:#000;overflow:hidden;font-family:system-ui,sans-serif;}
   canvas{background:#001133;border:12px solid #00ffff;box-shadow:0 0 70px #00ffff;display:block;}
@@ -21,21 +21,22 @@
 
 <canvas id="c" width="1200" height="600"></canvas>
 
-<div id="info">A/D移動　W跳　長按J蓄力射擊　撿道具換形態　第3關BOSS戰</div>
+<div id="info">A/D移動　W跳　長按J蓄力射擊　撿道具換形態　滿蓄力有金色光環！</div>
+
+<!-- 8-bit經典戰鬥音樂（來自經典洛克人） -->
+<audio id="bgm" loop>
+  <source src="https://cdn.jsdelivr.net/gh/gnjo/game-assets@master/megaman-bgm.mp3" type="audio/mpeg">
+</audio>
 
 <script>
-// ==================== 最終完美洛克人 ====================
+// 自動播放音樂（點擊後才會成功）
+document.body.addEventListener('click',()=>{document.getElementById('bgm').play();},{once:true});
+
 const canvas = document.getElementById('c');
 const ctx = canvas.getContext('2d');
 
 let cameraX = 0;
-let player = {
-  x:100,y:400,w:50,h:70,
-  vx:0,vy:0,onGround:false,facing:1,
-  charge:0,form:'normal',lives:3,
-  invulnerable:0 // 無敵時間（毫秒）
-};
-
+let player = {x:100,y:400,w:50,h:70,vx:0,vy:0,onGround:false,facing:1,charge:0,form:'normal',lives:3,invulnerable:0};
 let bullets=[],enemies=[],powerups=[],platforms=[],particles=[];
 let boss=null;
 let level=1,score=0;
@@ -60,11 +61,10 @@ function loadLevel(l){
   document.getElementById('boss').style.display='none';
   document.getElementById('lvl').textContent = l;
 
-  // 道具（固定在關卡右半部）
   powerups = [
-    {x:800+Math.random()*1000,y:300+Math.random()*100,type:'fire'},
-    {x:1200+Math.random()*1000,y:250+Math.random()*100,type:'electric'},
-    {x:1800+Math.random()*800,y:300+Math.random()*100,type:'ice'}
+    {x:800+Math.random()*800,y:300+Math.random()*100,type:'fire'},
+    {x:1400+Math.random()*800,y:250+Math.random()*100,type:'electric'},
+    {x:2000+Math.random()*600,y:300+Math.random()*100,type:'ice'}
   ];
 
   if(l===3){
@@ -80,33 +80,35 @@ loadLevel(1);
 document.addEventListener('keydown',e=>keys[e.key.toLowerCase()]=true);
 document.addEventListener('keyup',e=>keys[e.key.toLowerCase()]=false);
 
-// 蓄力射擊（滿蓄超炫彩特效）
+// 蓄力射擊（蓄力變慢 + 滿蓄金色光環）
 function shoot(){
-  const isCharged = player.charge > 150;
-  const power = isCharged ? 4 : 1;
-  const size = isCharged ? 80 : 24;
-  const damage = isCharged ? 999 : 1; // 滿蓄一擊必殺
+  const isCharged = player.charge >= 280; // 蓄力時間拉長
+  const power = isCharged ? 5 : 1;
+  const size = isCharged ? 90 : 26;
+  const damage = isCharged ? 999 : 1;
 
   bullets.push({
     x: player.x + (player.facing>0?player.w:0),
     y: player.y + 32,
     vx: player.facing * 22 * power,
     size: size,
-    color: FORMS[player.form].shot,
+    color: isCharged ? '#ffff00' : FORMS[player.form].shot,
     damage: damage,
-    trail: isCharged ? 30 : 0 // 滿蓄有尾焰
+    trail: isCharged ? 40 : 0
   });
   player.charge = 0;
 }
 
 function update(){
+  // 移動
+  player.vx = 0;
   if(keys['a']){ player.vx = -7; player.facing = -1; }
   if(keys['d']){ player.vx = 7; player.facing = 1; }
-  if(!keys['a']&&!keys['d']) player.vx *= 0.8;
   if(keys['w'] && player.onGround) player.vy = -21;
 
-  if(keys['j']) player.charge = Math.min(player.charge + 22, 300);
-  else if(player.charge > 40) shoot();
+  // 蓄力（變慢）
+  if(keys['j']) player.charge = Math.min(player.charge + 8, 300); // 變慢！
+  else if(player.charge > 50) shoot();
 
   player.vy += 0.95;
   player.x += player.vx;
@@ -115,52 +117,52 @@ function update(){
   // 平台碰撞
   player.onGround = false;
   platforms.forEach(p=>{
-    if(player.x < p.x+p.w && player.x+player.w > p.x &&
-       player.y < p.y+p.h && player.y+player.h > p.y && player.vy > 0){
+    if(player.x < p.x+p.w && player.x+player.w > p.x && player.y < p.y+p.h && player.y+player.h > p.y && player.vy > 0){
       player.y = p.y - player.h; player.vy = 0; player.onGround = true;
     }
   });
 
-  cameraX = player.x - 400;
-  if(cameraX < 0) cameraX = 0;
+  cameraX = Math.max(0, player.x - 400);
 
-  // 敵人從關卡最右邊生成
+  // 小怪生成（從最右邊）+ 攻擊頻率降低 + 走路變快
   spawnTimer += 16;
-  if(spawnTimer > 1400 - level*300){
-    enemies.push({x:4800,y:480,hp:3,maxHp:3,w:44,h:56,vx:-(2.5+level*0.6),shootTimer:Math.random()*1000});
+  if(spawnTimer > 2500 - level*400){ // 生成變慢
+    enemies.push({
+      x:4800,y:480,hp:3,maxHp:3,w:44,h:56,
+      vx:-(4 + level*1), // 走得更快
+      shootTimer:Math.random()*3000 + 2000 // 攻擊間隔2~5秒
+    });
     spawnTimer = 0;
   }
 
-  // 小怪AI
+  // 小怪AI（攻擊變慢）
   enemies.forEach((e,i)=>{
     e.x += e.vx;
     e.shootTimer += 16;
-    if(e.shootTimer > 1400){
-      bullets.push({x:e.x+(e.vx>0?e.w:0),y:e.y+30,vx:(player.x>e.x?12:-12),size:28,color:'#ff00ff',damage:1,isEnemy:true});
+    if(e.shootTimer > 3000){ // 攻擊頻率大幅降低
+      bullets.push({x:e.x+(e.vx>0?e.w:0),y:e.y+30,vx:(player.x>e.x?9:-9),size:24,color:'#ff00ff',damage:1,isEnemy:true});
       e.shootTimer = 0;
     }
     if(e.x < cameraX-200) enemies.splice(i,1);
   });
 
-  // Boss AI
+  // Boss AI（攻擊也變合理）
   if(boss){
-    boss.x += Math.sin(Date.now()/600)*2;
+    boss.x += Math.sin(Date.now()/1000)*2;
     boss.shootTimer += 16;
-    if(boss.shootTimer > 700){
-      for(let i=-2;i<=2;i++){
-        bullets.push({x:boss.x+boss.w/2,y:boss.y+boss.h,vx:(player.x-boss.x)/30+i*5,vy:8,size:45,color:'#ff00ff',damage:2,isEnemy:true});
+    if(boss.shootTimer > 1600){ // 攻擊變慢
+      for(let i=-1;i<=1;i++){
+        bullets.push({x:boss.x+boss.w/2,y:boss.y+boss.h,vx:(player.x-boss.x)/50+i*4,vy:7,size:40,color:'#ff00ff',damage:2,isEnemy:true});
       }
       boss.shootTimer = 0;
     }
-    document.getElementById('bossHp').textContent = boss.hp;
   }
 
-  // 子彈與碰撞
+  // 子彈與碰撞（包含扣血）
   bullets.forEach((b,i)=>{
     b.x += b.vx;
-    if(b.trail) for(let j=0;j<3;j++) particles.push({x:b.x+j*10,y:b.y,vx:b.vx*0.1,vy:0,color:b.color,life:15});
+    if(b.trail) for(let j=0;j<5;j++) particles.push({x:b.x-j*8,y:b.y,vx:b.vx*0.1,vy:0,color:b.color,life:20});
 
-    // 玩家子彈打敵人/Boss
     if(!b.isEnemy){
       enemies.forEach((e,j)=>{
         if(b.x < e.x+e.w && b.x+b.size > e.x && b.y < e.y+e.h && b.y+b.size > e.y){
@@ -170,53 +172,44 @@ function update(){
         }
       });
       if(boss && b.x < boss.x+boss.w && b.x+b.size > boss.x && b.y < boss.y+boss.h && b.y+b.size > boss.y){
-        boss.hp -= b.damage;
-        bullets.splice(i,1);
+        boss.hp -= b.damage; bullets.splice(i,1);
         if(boss.hp<=0){ score+=20000; alert('恭喜擊敗最終BOSS！總分：'+score); location.reload(); }
       }
     }
-    // 敵人子彈打玩家
-    else if(player.invulnerable <= 0 && b.x < player.x+player.w && b.x+b.size > player.x && b.y < player.y+player.h && b.y+b.size > player.y){
-      player.lives--;
-      player.invulnerable = 120; // 無敵2秒（60fps×2）
+    else if(player.invulnerable<=0 && b.x < player.x+player.w && b.x+b.size > player.x && b.y < player.y+player.h && b.y+b.size > player.y){
+      player.lives--; player.invulnerable = 120;
       bullets.splice(i,1);
       document.getElementById('lives').textContent = player.lives;
       if(player.lives<=0){ alert('遊戲結束！最終分數：'+score); location.reload(); }
-      player.x = Math.max(100, player.x-200); // 擊退
+      player.x = Math.max(100, player.x-300);
     }
   });
 
-  // 撿道具換形態（已修復）
+  // 撿道具變身
   powerups = powerups.filter(p=>{
-    if(Math.hypot(player.x+25 - p.x-30, player.y+35 - p.y-30) < 80){
+    if(Math.hypot(player.x+25 - (p.x+30), player.y+35 - (p.y+30)) < 80){
       player.form = p.type;
       document.getElementById('weapon').textContent = FORMS[p.type].name;
-      createExplosion(p.x+30,p.y+30,FORMS[p.type].color,60);
+      createExplosion(p.x+30,p.y+30,FORMS[p.type].color,80);
       return false;
     }
     return true;
   });
 
-  // 進關
   if(player.x > 4600){
-    level++;
-    if(level>3){ alert('恭喜全關通關！最終分數：'+score); location.reload(); }
-    loadLevel(level);
-    player.x = 100;
-    score += 10000;
+    level++; if(level>3){ alert('恭喜全關通關！最終分數：'+score); location.reload(); }
+    loadLevel(level); player.x = 100; score += 10000;
   }
 
-  // 無敵時間遞減
   if(player.invulnerable > 0) player.invulnerable--;
-
   document.getElementById('score').textContent = score;
 }
 
-function createExplosion(x,y,color='#ffff00',count=40){
+function createExplosion(x,y,color='#ffff00',count=50){
   for(let i=0;i<count;i++){
     const angle = Math.random()*Math.PI*2;
-    const speed = 3+Math.random()*10;
-    particles.push({x,y,vx:Math.cos(angle)*speed,vy:Math.sin(angle)*speed,color,life:40+Math.random()*20});
+    const speed = 4+Math.random()*12;
+    particles.push({x,y,vx:Math.cos(angle)*speed,vy:Math.sin(angle)*speed,color,life:40+Math.random()*30});
   }
 }
 
@@ -233,35 +226,46 @@ function draw(){
   platforms.forEach(p=>{ ctx.fillStyle='#0088ff'; ctx.shadowColor='#00ffff'; ctx.shadowBlur=40; ctx.fillRect(p.x,p.y,p.w,p.h); });
   ctx.shadowBlur=0;
 
-  // 玩家（超帥多層次pixel風）
-  if(player.invulnerable===0 || Math.floor(Date.now()/80)%4!==0){ // 無敵閃爍
+  // 玩家（滿蓄金色光環 + 無敵閃爍）
+  if(player.invulnerable===0 || Math.floor(Date.now()/80)%4!==0){
     const c = FORMS[player.form].color;
     ctx.shadowColor = c; ctx.shadowBlur = 50;
-    // 身體
     ctx.fillStyle = c; ctx.fillRect(player.x+8,player.y+8,player.w-16,player.h-16);
-    // 頭盔
-    ctx.fillStyle = '#ffffff'; ctx.fillRect(player.x+14,player.y+12,player.w-28,16);
-    // 眼睛
-    ctx.fillStyle = '#000000'; ctx.fillRect(player.x+18+(player.facing<0?10:0),player.y+18,8,8);
-    // 蓄力條（超炫）
-    if(player.charge>30){
-      ctx.shadowColor = '#ffffff'; ctx.shadowBlur = 30;
-      ctx.fillStyle = '#ffffff';
-      ctx.fillRect(player.x-10,player.y-20,(player.charge/300)*(player.w+20),12);
-      ctx.shadowBlur = 0;
+    ctx.fillStyle = '#ffffff'; ctx.fillRect(player.x+14,player.y+12,player.w-28,16); // 頭盔
+    ctx.fillStyle = '#000000'; ctx.fillRect(player.x+18+(player.facing<0?10:0),player.y+18,8,8); // 眼睛
+  }
+
+  // 滿蓄力金色光環特效
+  if(player.charge >= 280){
+    ctx.save();
+    ctx.translate(player.x+player.w/2, player.y+player.h/2);
+    for(let i=0;i<3;i++){
+      ctx.globalAlpha = 0.3 + i*0.2;
+      ctx.strokeStyle = '#ffff00';
+      ctx.lineWidth = 8+i*6;
+      ctx.beginPath();
+      ctx.arc(0,0,50+i*20,0,Math.PI*2);
+      ctx.stroke();
     }
+    ctx.restore();
+  }
+
+  // 蓄力條
+  if(player.charge>30){
+    ctx.fillStyle = player.charge>=280?'#ffff00':'#ffffff';
+    ctx.fillRect(player.x-10,player.y-25,(player.charge/300)*(player.w+20),12);
   }
   ctx.shadowBlur=0;
 
-  // 子彈（滿蓄超大彩虹尾焰）
+  // 子彈（滿蓄超大金色尾焰）
   bullets.forEach(b=>{
-    ctx.shadowColor = b.color; ctx.shadowBlur = b.trail?60:30;
+    ctx.shadowColor = b.color; ctx.shadowBlur = b.trail?80:30;
     ctx.fillStyle = b.color;
     ctx.fillRect(b.x,b.y,b.size,b.size);
     if(b.trail){
-      for(let i=1;i<8;i++){
-        ctx.globalAlpha = i/8;
-        ctx.fillRect(b.x-i*b.vx/4,b.y,b.size*0.8,b.size*0.8);
+      for(let i=1;i<10;i++){
+        ctx.globalAlpha = i/10;
+        ctx.fillRect(b.x-i*b.vx/3,b.y,b.size*0.9,b.size*0.9);
       }
       ctx.globalAlpha=1;
     }
@@ -286,7 +290,7 @@ function draw(){
     ctx.fillStyle='#00ff00'; ctx.fillRect(boss.x,boss.y-40,(boss.hp/boss.maxHp)*boss.w,20);
   }
 
-  // 道具（旋轉發光）
+  // 道具
   powerups.forEach(p=>{
     ctx.save(); ctx.translate(p.x+30,p.y+30); ctx.rotate(Date.now()/200);
     ctx.shadowColor=FORMS[p.type].color; ctx.shadowBlur=80;
@@ -299,7 +303,7 @@ function draw(){
     p.x+=p.vx; p.y+=p.vy; p.life--;
     ctx.globalAlpha = p.life/50;
     ctx.fillStyle = p.color;
-    ctx.fillRect(p.x,p.y,10,10);
+    ctx.fillRect(p.x,p.y,12,12);
     return p.life>0;
   });
   ctx.globalAlpha=1;
