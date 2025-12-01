@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>AI劇本殺 v4.0</title>
+  <title>AI劇本殺 v4.1</title>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
   <style>
@@ -15,6 +15,7 @@
     .btn-option {background:#007aff;color:white;padding:20px;font-size:28px;margin:15px 0;border-radius:12px;}
     .countdown {font-size:80px;color:#ff2d55;margin:30px 0;}
     .version {position:fixed;bottom:10px;right:15px;color:#666;font-size:14px;}
+    .player-item {font-size:22px;margin:10px;text-align:left;padding:10px;background:rgba(255,255,255,0.1);border-radius:8px;}
   </style>
 </head>
 <body>
@@ -37,10 +38,9 @@
     <div id="result" style="font-size:24px;color:#34c759;margin:20px;"></div>
   </div>
 
-  <div class="version">v4.0 – 蘋果穩定版</div>
+  <div class="version">v4.1 – 顯示玩家 ID</div>
 
   <script>
-    // 你的 Firebase 設定（正確）
     const firebaseConfig = {
       apiKey: "AIzaSyDZo4DmtNTd3-71PtfUOSNw2n276Or3vX8",
       authDomain: "dgame-web.firebaseapp.com",
@@ -57,9 +57,7 @@
     document.getElementById('code').innerText = code;
 
     const room = firebase.database().ref('rooms/' + code);
-
-    // 這裡改成從 Vercel 環境變數拿（最穩方式）
-    const OPENAI_KEY = "sk-請立刻去Vercel設定環境變數OPENAI_API_KEY";  // ← 待會告訴你怎麼設
+    const OPENAI_KEY = typeof process !== 'undefined' && process.env?.OPENAI_API_KEY || "sk-你的臨時key或Vercel環境變數";
 
     if(isHost) document.getElementById('host').style.display = 'block';
 
@@ -68,10 +66,15 @@
     me.set({name:name});
     me.onDisconnect().remove();
 
+    // 修復：加顯示 ID 邏輯
     room.child('players').on('value', s => {
       const div = document.getElementById('players');
-      div.innerHTML = '<p style="font-size:24px">玩家列表：</p>';
-      s.forEach(p => div.innerHTML += `<p style="font-size:22px;margin:10px">• ${p.val().name}</p>`);
+      div.innerHTML = '<p style="font-size:24px">玩家列表（含 ID）：</p>';
+      s.forEach(p => {
+        const key = p.key;  // 這就是玩家的 ID
+        const val = p.val();
+        div.innerHTML += `<div class="player-item">• 暱稱: ${val.name} <br> ID: ${key}</div>`;
+      });
     });
 
     window.start = async function() {
